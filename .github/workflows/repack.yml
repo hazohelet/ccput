@@ -1,0 +1,148 @@
+name: repack
+
+on:
+  schedule:
+    - cron: "26 8 * * *"
+  workflow_dispatch:
+    inputs:
+      families:
+        description: "families to repack (space separated, empty for all)"
+        type: string
+        default: ""
+      tag:
+        description: "nightly release to write to (default: today, UTC) -- set it to fill in a missed day"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repack
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      any: ${{ steps.plan.outputs.any }}
+      nightly: ${{ steps.plan.outputs.nightly }}
+      cross: ${{ steps.plan.outputs.cross }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: What the bucket holds
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export CCPUT_RELEASES="$(
+            gh release list --json tagName --limit 1000 -q '.[].tagName' | tr '\n' ' '
+          )"
+          ./repack.py plan --tag "${{ inputs.tag }}" ${{ inputs.families }}
+      - name: Create the nightly release
+        if: steps.plan.outputs.nightly == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ steps.plan.outputs.tag }}'
+          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket, repacked to the parts a C compile touches; no compiler is built here. Each asset is named for the day it was built and carries a provenance.json naming its exact source commit (gcc_revision / llvm_revision); manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries the upstream build.log.bz2 with the exact sources, configure and build flags. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
+          gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
+            --title "nightlies $tag" \
+            --notes "$notes"
+
+  qemu:
+    needs: plan
+    if: needs.plan.outputs.cross == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v19
+      - name: Build the pinned qemu-user set
+        run: |
+          nix build .#qemu-user -o "$PWD/qemu-out"
+          out=$(readlink -f "$PWD/qemu-out")
+          echo "$out" > out-path
+          nix path-info -r "$out" | sed 's|^/nix/store/||' > paths.txt
+          sudo tar -cf qemu-store.tar -C /nix/store --files-from paths.txt
+          zstd -T0 -q qemu-store.tar
+      - uses: actions/upload-artifact@v7
+        with:
+          name: qemu-store
+          path: |
+            qemu-store.tar.zst
+            out-path
+          retention-days: 1
+
+  repack:
+    needs: [plan, qemu]
+    if: needs.plan.outputs.any == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - name: Repack ${{ matrix.family }}-${{ matrix.build }}
+        run: ./repack.py repack "${{ matrix.family }}" "${{ matrix.build }}" --tag "${{ matrix.tag }}"
+      - uses: actions/download-artifact@v8
+        with:
+          name: qemu-store
+          path: qemu
+      - name: Unpack the pinned qemu
+        run: |
+          sudo mkdir -p /nix/store
+          sudo tar -xf qemu/qemu-store.tar.zst -C /nix/store
+          echo "CCPUT_QEMU=$(cat qemu/out-path)/bin" >> "$GITHUB_ENV"
+      - name: Check the result compiles, links and runs a program
+        run: python3 selfcheck.py "${{ matrix.family }}" "${{ matrix.build }}"
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ matrix.tag }}'
+          if [ "${{ matrix.kind }}" = stable ]; then
+            notes="Stable ${{ matrix.family }} ${{ matrix.build }} from Compiler Explorer's bucket, repacked to the parts a C compile touches; no compiler is built here. The archive carries a provenance.json naming its exact source, and manifest.json indexes the release. Licenses as in the nightly releases: GPLv3 for gcc and binutils (each cross archive carries the upstream build.log.bz2 and share/licenses/), Apache-2.0 for clang (LLVM's LICENSE.TXT ships inside)."
+            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
+              --title "${{ matrix.family }} ${{ matrix.build }}" \
+              --notes "$notes"
+          fi
+          gh release upload "$tag" \
+            "dist/${{ matrix.family }}-${{ matrix.build }}.tar.xz" --clobber
+          if [ "${{ matrix.kind }}" = stable ]; then
+            ./repack.py manifest "$tag"
+            gh release upload "$tag" dist/manifest.json --clobber
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: record-${{ matrix.family }}-${{ matrix.build }}
+          path: dist/${{ matrix.family }}-${{ matrix.build }}.record.json
+          retention-days: 1
+
+  publish:
+    needs: [plan, repack]
+    if: always() && needs.plan.outputs.nightly == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: record-*
+          merge-multiple: true
+      - name: Index the nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag='${{ needs.plan.outputs.tag }}'
+          if ! ls dist/*.record.json >/dev/null 2>&1; then
+            echo "no archives were published into $tag; nothing to index"
+            exit 0
+          fi
+          ./repack.py manifest "$tag"
+          gh release upload "$tag" dist/manifest.json --clobber
