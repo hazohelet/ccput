@@ -1,0 +1,17 @@
+name: audit
+
+on:
+  schedule:
+    - cron: "40 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  bucket-vs-mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: What the bucket holds that the mirror does not
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/scripts/audit.py
