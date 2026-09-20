@@ -45,13 +45,14 @@ staging = DIST / f".staging-{FAMILY}-{BUILD}"
 subprocess.run(["chmod", "-R", "u+w", staging], check=False)
 shutil.rmtree(staging, ignore_errors=True)
 
-# A cross build nests everything under the target triplet (matching the
-# Compiler Explorer layout); a native build lays it out flat, like CE's host
-# archives: bin/, lib/, lib64/, libexec/ directly under the family root.
+# The tarball mirrors the install prefix so the driver relocates cleanly.
+# For a cross build the driver sits at <family>/<target>/bin/<target>-gcc, so
+# the prefix root is <family>/<target> and the target-named directories nest
+# once more beneath it. A native build lays out flat, like CE's host archives:
+# bin/ and lib64/ directly under the family root, driver bin/gcc.
 cross_build = (INSTALL / TARGET / "sysroot").is_dir()
-tree = staging / f"{FAMILY}-{BUILD}"
-if cross_build:
-    tree = tree / TARGET
+root = staging / f"{FAMILY}-{BUILD}"
+tree = root / TARGET if cross_build else root
 tree.mkdir(parents=True)
 
 # The install contains only the C/LTO GCC build. Keep its C-facing programs,
@@ -62,20 +63,19 @@ if cross_build:
     for name in ("bin", "lib"):
         source = INSTALL / TARGET / name
         if source.is_dir():
-            copy(source, tree / name)
+            copy(source, tree / TARGET / name)
     sysroot = INSTALL / TARGET / "sysroot"
-    copy(sysroot / "usr" / "include", tree / "sysroot" / "usr" / "include")
-    copy(sysroot / "usr" / "lib", tree / "sysroot" / "usr" / "lib")
+    copy(sysroot / "usr" / "include", tree / TARGET / "sysroot" / "usr" / "include")
+    copy(sysroot / "usr" / "lib", tree / TARGET / "sysroot" / "usr" / "lib")
     # Recreate the alias symlinks the build script set up: one real lib
     # directory, every name the linker or the loader may look for.
-    (tree / "sysroot" / "lib").symlink_to("usr/lib")
-    (tree / "sysroot" / "lib64").symlink_to("usr/lib")
-    (tree / "sysroot" / "usr" / "lib64").symlink_to("lib")
+    (tree / TARGET / "sysroot" / "lib").symlink_to("usr/lib")
+    (tree / TARGET / "sysroot" / "lib64").symlink_to("usr/lib")
+    (tree / TARGET / "sysroot" / "usr" / "lib64").symlink_to("lib")
 else:
-    for name in ("lib", "lib64"):
-        source = INSTALL / name
-        if source.is_dir():
-            copy(source, tree / name)
+    source = INSTALL / "lib64"
+    if source.is_dir():
+        copy(source, tree / "lib64")
 copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
 
 for path in (INSTALL / "lib" / "gcc" / TARGET).glob("*/include*"):
@@ -108,7 +108,7 @@ for name in ("configure.log", "build.log", "install.log"):
 revision = subprocess.check_output(
     ["git", "-C", SOURCE, "rev-parse", "HEAD"], text=True
 ).strip()
-version = subprocess.check_output([tree.parent / DRIVER, "--version"], text=True).strip()
+version = subprocess.check_output([root / DRIVER, "--version"], text=True).strip()
 provenance = {
     "family": FAMILY,
     "date": BUILD,
@@ -121,7 +121,7 @@ provenance = {
     "gcc_checking": "yes",
     "cross_tools_source": cross_source,
 }
-(tree.parent / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
+(root / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
 
 # The build is -g with checking, and the debug info dwarfs the code. Keep the
 # symbol tables, drop the line info, and leave the pinned binutils untouched.
@@ -162,7 +162,7 @@ subprocess.run(
         asset,
         "-C",
         staging,
-        tree.parent.name,
+        root.name,
     ],
     check=True,
 )
