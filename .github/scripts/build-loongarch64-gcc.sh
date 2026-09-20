@@ -5,12 +5,20 @@ set -euo pipefail
 : "${BOOTSTRAP_VERSION:?BOOTSTRAP_VERSION is required}"
 
 workspace=$PWD
-bootstrap="$workspace/bootstrap/loongarch64-gcc-${BOOTSTRAP_VERSION}/loongarch64-gcc/$TARGET"
+bootstrap="$workspace/bootstrap/gcc-${BOOTSTRAP_VERSION}/$TARGET"
 install="$workspace/gcc-install"
 build="$workspace/gcc-build"
 
-test -x "$bootstrap/bin/$TARGET-as"
-test -d "$bootstrap/$TARGET/sysroot/usr/include"
+if [[ ! -x "$bootstrap/bin/$TARGET-as" ]]; then
+  echo "::error::missing bootstrap assembler: $bootstrap/bin/$TARGET-as"
+  find "$workspace/bootstrap" -maxdepth 4 -type d -print
+  exit 1
+fi
+if [[ ! -d "$bootstrap/$TARGET/sysroot/usr/include" ]]; then
+  echo "::error::missing bootstrap sysroot headers: $bootstrap/$TARGET/sysroot/usr/include"
+  find "$bootstrap" -maxdepth 4 -type d -print
+  exit 1
+fi
 
 mkdir -p "$install/bin" "$install/$TARGET" "$install/share"
 cp -a "$bootstrap/$TARGET/bin" "$install/$TARGET/"
