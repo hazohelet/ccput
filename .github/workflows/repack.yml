@@ -42,8 +42,10 @@ jobs:
       - name: Pin the trunk commits
         id: pins
         run: |
+          # Match the ref column exactly: a bare HEAD pattern also matches
+          # refs/remotes/<name>/HEAD tails, which are other people's heads.
           pin() {
-            sha="$(git ls-remote "$1" HEAD | awk 'END { print $1 }')"
+            sha="$(git ls-remote "$1" HEAD | awk '$2 == "HEAD" { print $1 }')"
             if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
               echo "::error::could not pin $1: ${sha:-empty}"
               exit 1
