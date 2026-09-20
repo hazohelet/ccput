@@ -29,10 +29,15 @@ cmake -S "$src/llvm" -B "$build" -G Ninja \
   -DLLVM_PARALLEL_LINK_JOBS=2 \
   2>&1 | tee "$workspace/configure.log"
 
-ninja -C "$build" install-clang install-runtimes 2>&1 | tee "$workspace/build.log"
+ninja -C "$build" install-clang install-clang-resource-headers install-runtimes \
+  2>&1 | tee "$workspace/build.log"
 
 "$install/bin/clang" --version
-printf 'int main(void){return 0;}\n' > "$workspace/probe.c"
+# The probe includes a system header so the resource-dir builtins must be
+# installed for it to compile: without install-clang-resource-headers this
+# fails on stddef.h.
+printf '#include <stdio.h>\nint main(void){printf("ok\\n");return 0;}\n' \
+  > "$workspace/probe.c"
 "$install/bin/clang" "$workspace/probe.c" -o "$workspace/probe"
 "$workspace/probe"
 "$install/bin/clang" -fsanitize=undefined,address "$workspace/probe.c" \
