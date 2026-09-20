@@ -150,6 +150,8 @@ jobs:
           mkdir bootstrap
           tar -xf bootstrap.tar.xz -C bootstrap
           sha256sum bootstrap.tar.xz > bootstrap.sha256
+      - name: Install libfl for the bootstrap ar and ranlib
+        run: sudo apt-get update && sudo apt-get install -y libfl2
       - name: Build the assertions-enabled C compiler
         run: nix develop .#gcc-loongarch64 --command .github/scripts/build-loongarch64-gcc.sh
       - name: Package only what C compilation needs

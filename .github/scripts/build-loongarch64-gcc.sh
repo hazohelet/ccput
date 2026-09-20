@@ -29,6 +29,16 @@ for tool in addr2line ar as c++filt elfedit ld ld.bfd nm objcopy objdump ranlib 
   cp -a "$bootstrap/bin/$TARGET-$tool" "$install/bin/"
 done
 
+# ar and ranlib are the only bootstrap tools linked against libfl.so.2, which
+# the runner image does not carry (CI installs libfl2). Fail fast here rather
+# than partway through all-target-libgcc.
+for tool in ar ranlib; do
+  if ! "$install/$TARGET/bin/$tool" --version >/dev/null 2>&1; then
+    echo "::error::bootstrap $tool does not run; is libfl2 installed?"
+    exit 1
+  fi
+done
+
 export PATH="$bootstrap/bin:$PATH"
 mkdir "$build"
 cd "$build"

@@ -143,7 +143,6 @@
           # Nix's format hardening injects -Werror=format-security, which is
           # incompatible with GCC trunk's libcpp diagnostics implementation.
           hardeningDisable = [ "format" ];
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.flex ];
           packages = with pkgs; [
             bash
             binutils
