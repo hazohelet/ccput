@@ -496,6 +496,19 @@ def cmd_manifest(args) -> int:
     ]
     if not entries:
         die(f"no records for release {args.tag} under {DIST}")
+    # A partial run (one family re-dispatched) must not shrink the index:
+    # merge with the manifest already on the release, fresh records winning.
+    published = DIST / "manifest.json"
+    if published.is_file():
+        try:
+            old = json.loads(published.read_text())
+        except json.JSONDecodeError:
+            old = {}
+        if old.get("release") == args.tag:
+            by_family = {e["family"]: e for e in entries}
+            for entry in old.get("assets", []):
+                by_family.setdefault(entry["family"], entry)
+            entries = sorted(by_family.values(), key=lambda e: e["family"])
     manifest = {
         "release": args.tag,
         "note": "Compiler nightlies, either repacked from Compiler Explorer or built by this workflow; see each asset's provenance.",

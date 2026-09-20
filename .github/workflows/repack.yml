@@ -347,5 +347,8 @@ jobs:
             echo "no archives were published into $tag; nothing to index"
             exit 0
           fi
+          # Seed the merge with the manifest already on the release, so a
+          # partial run extends the index instead of shrinking it.
+          gh release download "$tag" --pattern manifest.json --dir dist || true
           ./repack.py manifest "$tag"
           gh release upload "$tag" dist/manifest.json --clobber
