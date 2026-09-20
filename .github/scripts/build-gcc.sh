@@ -41,7 +41,7 @@ if [[ -n "$CROSS" ]]; then
   for lib in \
     /usr/lib/x86_64-linux-gnu/libbfd-*.so \
     /usr/lib/x86_64-linux-gnu/libopcodes-*.so \
-    /usr/lib/x86_64-linux-gnu/libctf*.so
+    /usr/lib/x86_64-linux-gnu/libctf*.so*
   do
     cp -L "$lib" "$install/bin/"
     cp -L "$lib" "$install/$TARGET/bin/"

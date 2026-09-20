@@ -130,6 +130,28 @@ def main() -> int:
             die("the probe printed nothing")
         print(f"selfcheck: {family}-{build} runs")
 
+        if family.endswith("-gcc-assertions-trunk"):
+            # The self-built families are C+LTO only and ship no sanitizer
+            # runtimes; instrumentation compiles, links are not expected to.
+            subprocess.run(
+                [
+                    driver,
+                    "-w",
+                    "-O1",
+                    "-fsanitize=undefined,address",
+                    "-fno-sanitize-recover=all",
+                    "-c",
+                    probe,
+                    "-o",
+                    work / "probe-san.o",
+                ],
+                check=True,
+            )
+            print(
+                f"selfcheck: {family}-{build} instruments under UBSan and ASan "
+                "(no sanitizer runtime shipped)"
+            )
+            return 0
         subprocess.run(
             [
                 driver,
