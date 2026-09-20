@@ -17,9 +17,13 @@ if [[ ! -d "$src/llvm" ]]; then
   exit 1
 fi
 
+# LLVM trunk assumes a recent host compiler: gcc 13 (24.04's default) trips
+# over missing transitive <cstdint> includes, so build with gcc 14.
 cmake -S "$src/llvm" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$install" \
+  -DCMAKE_C_COMPILER=gcc-14 \
+  -DCMAKE_CXX_COMPILER=g++-14 \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DLLVM_ENABLE_PROJECTS=clang \
   -DLLVM_ENABLE_RUNTIMES=compiler-rt \
