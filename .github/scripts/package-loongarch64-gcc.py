@@ -115,6 +115,9 @@ subprocess.run(
     ],
     check=True,
 )
+# The bootstrap sysroot ships read-only directories; copytree preserves their
+# modes, so make staging user-writable again before removing it.
+subprocess.run(["chmod", "-R", "u+w", staging], check=True)
 shutil.rmtree(staging)
 
 record = {
