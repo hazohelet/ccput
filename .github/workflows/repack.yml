@@ -42,9 +42,17 @@ jobs:
       - name: Pin the trunk commits
         id: pins
         run: |
+          pin() {
+            sha="$(git ls-remote "$1" HEAD | awk 'END { print $1 }')"
+            if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::could not pin $1: ${sha:-empty}"
+              exit 1
+            fi
+            printf '%s\n' "$sha"
+          }
           {
-            echo "gcc=$(git ls-remote https://github.com/gcc-mirror/gcc.git HEAD | cut -f1)"
-            echo "llvm=$(git ls-remote https://github.com/llvm/llvm-project.git HEAD | cut -f1)"
+            echo "gcc=$(pin https://github.com/gcc-mirror/gcc.git)"
+            echo "llvm=$(pin https://github.com/llvm/llvm-project.git)"
           } >> "$GITHUB_OUTPUT"
       - name: What the bucket holds
         id: plan
