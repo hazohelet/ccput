@@ -47,7 +47,22 @@ tree.mkdir(parents=True)
 # compiler proper, startup objects, libgcc, headers, and the pinned linker/sysroot.
 copy(INSTALL / "bin", tree / "bin")
 copy(INSTALL / TARGET / "bin", tree / TARGET / "bin")
-copy(INSTALL / TARGET / "sysroot", tree / TARGET / "sysroot")
+# The sysroot is a full target rootfs; keep the parts a C compile touches and
+# drop the other languages' runtimes, as the repacked families' drop list does.
+for part in ("usr/include", "usr/lib64", "lib64"):
+    copy(INSTALL / TARGET / "sysroot" / part, tree / TARGET / "sysroot" / part)
+RUNTIME_PREFIXES = (
+    "libga68",
+    "libgdruntime",
+    "libgfortran",
+    "libgphobos",
+    "libstdc++",
+    "libsupc++",
+    "libobjc",
+)
+for path in (INSTALL / TARGET / "sysroot" / "lib").iterdir():
+    if path.is_dir() or not path.name.startswith(RUNTIME_PREFIXES):
+        copy(path, tree / TARGET / "sysroot" / "lib" / path.name)
 copy(INSTALL / TARGET / "lib", tree / TARGET / "lib")
 copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
 
@@ -59,6 +74,7 @@ for path in (INSTALL / "lib" / "gcc" / TARGET).glob("*/*"):
 for name in (
     "cc1",
     "collect2",
+    "lto1",
     "lto-wrapper",
     "liblto_plugin.so",
     "liblto_plugin.so.0",
@@ -66,6 +82,27 @@ for name in (
 ):
     for path in (INSTALL / "libexec" / "gcc" / TARGET).glob(f"*/{name}"):
         copy(path, tree / "libexec" / "gcc" / TARGET / path.parent.name / path.name)
+
+# lto-dump only inspects LTO bytecode; no compile ever runs it.
+for path in tree.glob(f"bin/{TARGET}-lto-dump*"):
+    path.unlink()
+
+# The build is -g with checking, and the debug info dwarfs the code. Keep the
+# symbol tables, drop the line info, and leave the pinned binutils untouched.
+def strip_debug(path: Path) -> None:
+    with path.open("rb") as stream:
+        if stream.read(4) != b"\x7fELF":
+            return
+    subprocess.run(["strip", "--strip-debug", path], check=True)
+
+
+for pattern in (f"{TARGET}-gcc*", f"{TARGET}-cpp", f"{TARGET}-gcov*"):
+    for path in (tree / "bin").glob(pattern):
+        if not path.is_symlink():
+            strip_debug(path)
+for path in (tree / "libexec" / "gcc" / TARGET).glob("*/*"):
+    if path.is_file() and not path.is_symlink():
+        strip_debug(path)
 
 logs = b""
 for name in ("configure.log", "build.log", "install.log"):
