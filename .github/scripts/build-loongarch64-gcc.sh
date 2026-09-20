@@ -41,6 +41,7 @@ configure=(
   --with-arch=loongarch64
   --enable-languages=c,lto
   --enable-checking=yes
+  --disable-werror
   --disable-multilib
   --disable-bootstrap
   --disable-nls
