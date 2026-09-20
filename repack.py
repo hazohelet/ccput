@@ -400,7 +400,8 @@ def cmd_plan(args) -> int:
         die(f"unknown family {sorted(unknown)[0]!r}")
     have = set(os.environ.get("CCPUT_RELEASES", "").split())
 
-    # The gcc nightly families this workflow builds itself, not repacks.
+    # The nightly families this workflow builds itself, not repacks: the gcc
+    # matrix goes to the gcc jobs, the clang matrix to the clang ones.
     build_include = []
     for name, family in BUILT.items():
         if requested and name not in requested:
@@ -411,6 +412,7 @@ def cmd_plan(args) -> int:
         build_include.append(
             {
                 "family": name,
+                "compiler": family.get("compiler", "gcc"),
                 "target": family["target"],
                 "cross": family["cross"],
                 "driver": family["driver"],
@@ -418,7 +420,8 @@ def cmd_plan(args) -> int:
                 "tag": tag,
             }
         )
-    build_any = bool(build_include)
+    gcc_builds = [e for e in build_include if e["compiler"] == "gcc"]
+    clang_builds = [e for e in build_include if e["compiler"] == "clang"]
 
     include, nightly = [], 0
     bucket_families = (
@@ -455,21 +458,24 @@ def cmd_plan(args) -> int:
                 }
             )
     matrix = {"include": include}
-    build_matrix = {"include": build_include}
     print(json.dumps(matrix))
     print(
         f"{len(include)} to repack ({nightly} nightly, {len(include) - nightly} stable); "
-        f"{len(build_include)} gcc assertions build"
-        f"{'' if len(build_include) == 1 else 's'}",
+        f"{len(gcc_builds)} gcc and {len(clang_builds)} clang assertion build"
+        f"{'' if len(gcc_builds) + len(clang_builds) == 1 else 's'}",
         file=sys.stderr,
     )
     if output := os.environ.get("GITHUB_OUTPUT"):
         with open(output, "a") as f:
             f.write(f"matrix={json.dumps(matrix)}\n")
-            f.write(f"build_matrix={json.dumps(build_matrix)}\n")
+            f.write(f"build_matrix={json.dumps({'include': gcc_builds})}\n")
+            f.write(f"clang_matrix={json.dumps({'include': clang_builds})}\n")
             f.write(f"any={'true' if include else 'false'}\n")
-            f.write(f"build_any={'true' if build_any else 'false'}\n")
-            f.write(f"nightly={'true' if nightly or build_any else 'false'}\n")
+            f.write(f"build_any={'true' if gcc_builds else 'false'}\n")
+            f.write(f"clang_any={'true' if clang_builds else 'false'}\n")
+            f.write(
+                f"nightly={'true' if nightly or gcc_builds or clang_builds else 'false'}\n"
+            )
             hosts = ("gcc", "gcc-assertions", "clang", "clang-assertions")
             cross = any(
                 e["family"].removesuffix("-trunk") not in hosts for e in include

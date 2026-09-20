@@ -96,7 +96,7 @@ configure=(
   "$workspace/gcc/configure"
   "--prefix=$install"
   --enable-languages=c,lto
-  --enable-checking=yes
+  --enable-checking=yes,extra,rtl
   --disable-werror
   --disable-multilib
   --disable-bootstrap
