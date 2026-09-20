@@ -106,9 +106,29 @@ printf ' %q' "${configure[@]}" >> configure.log
 printf '\n' >> configure.log
 "${configure[@]}" 2>&1 | tee -a configure.log
 
-make -j"$(nproc)" all-gcc all-target-libgcc 2>&1 | tee build.log
+make -j"$(nproc)" all-gcc all-target-libgcc all-target-libatomic 2>&1 | tee build.log
 grep -q '^#define ENABLE_ASSERT_CHECKING 1' gcc/auto-host.h
-make install-gcc install-target-libgcc 2>&1 | tee install.log
+make install-gcc install-target-libgcc install-target-libatomic 2>&1 | tee install.log
+
+# gcc's loongarch linux specs link -latomic_asneeded and -lgcc_s_asneeded;
+# those are Debian/Loongson shim libraries that the Ubuntu cross sysroot does
+# not carry. Install the same shims next to the target runtimes: as-needed
+# wrappers over the real libraries installed just above.
+libdir="$install/$TARGET/lib"
+cat > "$libdir/libatomic_asneeded.so" <<'EOF'
+/* GNU ld script
+   Add DT_NEEDED entry for -latomic only if needed.  */
+INPUT ( AS_NEEDED ( -latomic ) )
+EOF
+ln -sf libatomic.a "$libdir/libatomic_asneeded.a"
+cat > "$libdir/libgcc_s_asneeded.so" <<'EOF'
+/* GNU ld script
+   Add DT_NEEDED entry for libgcc_s.so only if needed.  */
+INPUT ( AS_NEEDED ( -lgcc_s ) )
+EOF
 
 "$install/bin/$TARGET-gcc" -v
 "$install/bin/$TARGET-gcc" -print-sysroot | grep -F "$install/$TARGET/sysroot"
+printf 'int main(void){return 0;}\n' > "$workspace/probe.c"
+"$install/bin/$TARGET-gcc" -static "$workspace/probe.c" -o "$workspace/probe"
+file "$workspace/probe" | grep -F "ELF 64-bit"
