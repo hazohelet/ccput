@@ -125,7 +125,7 @@ jobs:
           retention-days: 1
 
   build-loongarch64:
-    needs: [plan, qemu]
+    needs: plan
     if: needs.plan.outputs.build_loongarch64 == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
@@ -135,20 +135,14 @@ jobs:
       BOOTSTRAP_VERSION: 16.1.0
     steps:
       - uses: actions/checkout@v7
+      - uses: DeterminateSystems/nix-installer-action@v19
       - uses: actions/checkout@v7
         with:
           repository: gcc-mirror/gcc
           path: gcc
           fetch-depth: 1
-      - name: Install GCC build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            bison flex libgmp-dev libisl-dev libmpc-dev libmpfr-dev \
-            libzstd-dev texinfo zlib1g-dev
       - name: Fetch GCC's pinned build prerequisites
-        working-directory: gcc
-        run: ./contrib/download_prerequisites
+        run: nix develop .#gcc-loongarch64 --command bash -c 'cd gcc && ./contrib/download_prerequisites'
       - name: Fetch the pinned LoongArch binutils and sysroot
         run: |
           url="https://compiler-explorer.s3.amazonaws.com/opt/loongarch64-gcc-${BOOTSTRAP_VERSION}.tar.xz"
@@ -157,16 +151,33 @@ jobs:
           tar -xf bootstrap.tar.xz -C bootstrap
           sha256sum bootstrap.tar.xz > bootstrap.sha256
       - name: Build the assertions-enabled C compiler
-        run: .github/scripts/build-loongarch64-gcc.sh
+        run: nix develop .#gcc-loongarch64 --command .github/scripts/build-loongarch64-gcc.sh
       - name: Package only what C compilation needs
         env:
           BUILD: ${{ needs.plan.outputs.tag }}
           TAG: ${{ needs.plan.outputs.tag }}
         run: python3 .github/scripts/package-loongarch64-gcc.py
-      - name: Remove build inputs before the relocatability check
-        run: |
-          rm -rf -- gcc-build gcc-install bootstrap
-          rm -f -- bootstrap.tar.xz
+      - uses: actions/upload-artifact@v7
+        with:
+          name: built-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
+          path: |
+            dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.tar.xz
+            dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.record.json
+          retention-days: 1
+
+  check-loongarch64:
+    needs: [plan, qemu, build-loongarch64]
+    if: needs.plan.outputs.build_loongarch64 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FAMILY: loongarch64-gcc-assertions-trunk
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: built-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
+          path: dist
       - uses: actions/download-artifact@v8
         with:
           name: qemu-store
@@ -191,7 +202,7 @@ jobs:
           retention-days: 1
 
   publish:
-    needs: [plan, repack, build-loongarch64]
+    needs: [plan, repack, check-loongarch64]
     if: always() && needs.plan.outputs.nightly == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20

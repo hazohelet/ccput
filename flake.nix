@@ -1,6 +1,5 @@
 {
-  description =
-    "pinned QEMU linux-user emulators for checking the repacked cross toolchains";
+  description = "CI environments for building and checking ccput toolchains";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -137,6 +136,32 @@
       packages = forAllSystems (pkgs: rec {
         qemu-user = mkQemuUser pkgs;
         default = qemu-user;
+      });
+
+      devShells = forAllSystems (pkgs: {
+        gcc-loongarch64 = pkgs.mkShell {
+          packages = with pkgs; [
+            bash
+            binutils
+            bison
+            cacert
+            curl
+            flex
+            gawk
+            git
+            gnumake
+            gmp
+            isl
+            libmpc
+            mpfr
+            python3
+            texinfo
+            wget
+            xz
+            zlib
+            zstd
+          ];
+        };
       });
     };
 }

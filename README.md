@@ -10,7 +10,8 @@ mirror preserves after the bucket rotates them away.
   each asset carrying a `provenance.json` (source URL, sha256, driver,
   revisions) and indexed by the release's `manifest.json`.
   `loongarch64-gcc-assertions-trunk` is a C-and-LTO-only GCC build with
-  `--enable-checking=yes`; it reuses pinned CE binutils and a CE sysroot.
+  `--enable-checking=yes`; it reuses pinned CE binutils and a CE sysroot. Its
+  reproducible build environment is available as `nix develop .#gcc-loongarch64`.
 - **stable**: one release per major version per family, tagged
   `<family>-<version>` (`gcc-16.2.0`, `arm64-gcc-16.1.0`, `clang-23.1.0`),
   every major from gcc 9 / clang 10 on, host and cross (arm, arm64, riscv64,
