@@ -135,14 +135,18 @@ jobs:
       BOOTSTRAP_VERSION: 16.1.0
     steps:
       - uses: actions/checkout@v7
-      - uses: DeterminateSystems/nix-installer-action@v19
       - uses: actions/checkout@v7
         with:
           repository: gcc-mirror/gcc
           path: gcc
           fetch-depth: 1
+      - name: Install the build tools and libfl for the bootstrap ar and ranlib
+        run: >
+          sudo apt-get update &&
+          sudo apt-get install -y
+          build-essential bison flex gawk texinfo zlib1g-dev libfl2
       - name: Fetch GCC's pinned build prerequisites
-        run: nix develop .#gcc-loongarch64 --command bash -c 'cd gcc && ./contrib/download_prerequisites'
+        run: cd gcc && ./contrib/download_prerequisites
       - name: Fetch the pinned LoongArch binutils and sysroot
         run: |
           url="https://compiler-explorer.s3.amazonaws.com/opt/loongarch64-gcc-${BOOTSTRAP_VERSION}.tar.xz"
@@ -150,10 +154,8 @@ jobs:
           mkdir bootstrap
           tar -xf bootstrap.tar.xz -C bootstrap
           sha256sum bootstrap.tar.xz > bootstrap.sha256
-      - name: Install libfl for the bootstrap ar and ranlib
-        run: sudo apt-get update && sudo apt-get install -y libfl2
       - name: Build the assertions-enabled C compiler
-        run: nix develop .#gcc-loongarch64 --command .github/scripts/build-loongarch64-gcc.sh
+        run: .github/scripts/build-loongarch64-gcc.sh
       - name: Package only what C compilation needs
         env:
           BUILD: ${{ needs.plan.outputs.tag }}

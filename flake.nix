@@ -137,34 +137,5 @@
         qemu-user = mkQemuUser pkgs;
         default = qemu-user;
       });
-
-      devShells = forAllSystems (pkgs: {
-        gcc-loongarch64 = pkgs.mkShell {
-          # Nix's format hardening injects -Werror=format-security, which is
-          # incompatible with GCC trunk's libcpp diagnostics implementation.
-          hardeningDisable = [ "format" ];
-          packages = with pkgs; [
-            bash
-            binutils
-            bison
-            cacert
-            curl
-            flex
-            gawk
-            git
-            gnumake
-            gmp
-            isl
-            libmpc
-            mpfr
-            python3
-            texinfo
-            wget
-            xz
-            zlib
-            zstd
-          ];
-        };
-      });
     };
 }
