@@ -140,6 +140,9 @@
 
       devShells = forAllSystems (pkgs: {
         gcc-loongarch64 = pkgs.mkShell {
+          # Nix's format hardening injects -Werror=format-security, which is
+          # incompatible with GCC trunk's libcpp diagnostics implementation.
+          hardeningDisable = [ "format" ];
           packages = with pkgs; [
             bash
             binutils
