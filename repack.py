@@ -415,7 +415,6 @@ def cmd_plan(args) -> int:
                 "cross": family["cross"],
                 "driver": family["driver"],
                 "arch": family["arch"],
-                "shims": family["shims"],
                 "tag": tag,
             }
         )

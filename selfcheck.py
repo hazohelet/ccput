@@ -130,7 +130,9 @@ def main() -> int:
             die("the probe printed nothing")
         print(f"selfcheck: {family}-{build} runs")
 
-        if family.endswith("-gcc-assertions-trunk"):
+        if family == "gcc-assertions-trunk" or family.endswith(
+            "-gcc-assertions-trunk"
+        ):
             # The self-built families are C+LTO only and ship no sanitizer
             # runtimes; instrumentation compiles, links are not expected to.
             subprocess.run(

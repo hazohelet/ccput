@@ -7,7 +7,7 @@ set -euo pipefail
 # A cross build sets CROSS (the Debian arch of libc6-dev-<CROSS>-cross) and
 # takes its target tools and sysroot from the Ubuntu archive; a native build
 # leaves CROSS empty and uses the host as-is. ARCH_FLAGS adds configure
-# flags. SHIMS=true installs the LoongArch -latomic_asneeded shims.
+# flags.
 
 workspace=$PWD
 install="$workspace/gcc-install"
@@ -121,11 +121,12 @@ make -j"$(nproc)" all-gcc all-target-libgcc all-target-libatomic 2>&1 | tee buil
 grep -q '^#define ENABLE_ASSERT_CHECKING 1' gcc/auto-host.h
 make install-gcc install-target-libgcc install-target-libatomic 2>&1 | tee install.log
 
-# gcc's LoongArch linux specs link -latomic_asneeded and -lgcc_s_asneeded;
-# those are Debian/Loongson shim libraries that the Ubuntu cross sysroot does
-# not carry. Install the same shims next to the target runtimes: as-needed
-# wrappers over the real libraries installed just above.
-if [[ "$SHIMS" == true ]]; then
+# gcc's linux specs link -latomic_asneeded and -lgcc_s_asneeded on several
+# targets (LoongArch64, AArch64, PowerPC64, ...); those are Debian/Loongson
+# shim libraries that the Ubuntu cross sysroot does not carry. Install the
+# same shims next to the target runtimes for every cross: as-needed wrappers
+# over the real libraries installed just above, a no-op where unused.
+if [[ -n "$CROSS" ]]; then
   libdir="$install/$TARGET/lib"
   cat > "$libdir/libatomic_asneeded.so" <<'EOF'
 /* GNU ld script

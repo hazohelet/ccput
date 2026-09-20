@@ -139,7 +139,6 @@ jobs:
       CROSS: ${{ matrix.cross }}
       DRIVER: ${{ matrix.driver }}
       ARCH_FLAGS: ${{ join(matrix.arch, ' ') }}
-      SHIMS: ${{ matrix.shims }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
