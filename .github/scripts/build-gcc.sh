@@ -122,24 +122,8 @@ grep -q '^#define ENABLE_ASSERT_CHECKING 1' gcc/auto-host.h
 make install-gcc install-target-libgcc install-target-libatomic 2>&1 | tee install.log
 
 # gcc's linux specs link -latomic_asneeded and -lgcc_s_asneeded on several
-# targets (LoongArch64, AArch64, PowerPC64, ...); those are Debian/Loongson
-# shim libraries that the Ubuntu cross sysroot does not carry. Install the
-# same shims next to the target runtimes for every cross: as-needed wrappers
-# over the real libraries installed just above, a no-op where unused.
-if [[ -n "$CROSS" ]]; then
-  libdir="$install/$TARGET/lib"
-  cat > "$libdir/libatomic_asneeded.so" <<'EOF'
-/* GNU ld script
-   Add DT_NEEDED entry for -latomic only if needed.  */
-INPUT ( AS_NEEDED ( -latomic ) )
-EOF
-  ln -sf libatomic.a "$libdir/libatomic_asneeded.a"
-  cat > "$libdir/libgcc_s_asneeded.so" <<'EOF'
-/* GNU ld script
-   Add DT_NEEDED entry for libgcc_s.so only if needed.  */
-INPUT ( AS_NEEDED ( -lgcc_s ) )
-EOF
-fi
+# targets (LoongArch64, AArch64, PowerPC64, ...); trunk's own install creates
+# those shims next to the runtimes, in whichever lib dir the target uses.
 
 printf 'int main(void){return 0;}\n' > "$workspace/probe.c"
 if [[ -n "$CROSS" ]]; then

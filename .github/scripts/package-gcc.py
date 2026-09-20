@@ -60,10 +60,15 @@ tree.mkdir(parents=True)
 # sysroot the cross build assembled.
 copy(INSTALL / "bin", tree / "bin")
 if cross_build:
-    for name in ("bin", "lib"):
+    # gcc installs the target runtimes into $target/lib on some targets and
+    # $target/lib/../lib64 (that is, $target/lib64) on lib64-style ones; ship
+    # whichever exist.
+    for name in ("bin", "lib", "lib64"):
         source = INSTALL / TARGET / name
         if source.is_dir():
             copy(source, tree / TARGET / name)
+    for la in (tree / TARGET).glob("lib*/*.la"):
+        la.unlink()
     sysroot = INSTALL / TARGET / "sysroot"
     copy(sysroot / "usr" / "include", tree / TARGET / "sysroot" / "usr" / "include")
     copy(sysroot / "usr" / "lib", tree / TARGET / "sysroot" / "usr" / "lib")
