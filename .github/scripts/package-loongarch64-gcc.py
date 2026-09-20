@@ -15,10 +15,12 @@ FAMILY = os.environ["FAMILY"]
 TARGET = os.environ["TARGET"]
 BUILD = os.environ["BUILD"]
 TAG = os.environ["TAG"]
-BOOTSTRAP_VERSION = os.environ["BOOTSTRAP_VERSION"]
 INSTALL = ROOT / "gcc-install"
 SOURCE = ROOT / "gcc"
 BUILD_DIR = ROOT / "gcc-build"
+# Dumped by the build job: the exact cross packages the toolchain consumed.
+cross_txt = ROOT / "ubuntu-cross.txt"
+cross_source = " ".join(cross_txt.read_text().split()) if cross_txt.is_file() else "Ubuntu 24.04 archive"
 
 
 def copy(source: Path, destination: Path) -> None:
@@ -60,9 +62,11 @@ RUNTIME_PREFIXES = (
     "libsupc++",
     "libobjc",
 )
-for path in (INSTALL / TARGET / "sysroot" / "lib").iterdir():
-    if path.is_dir() or not path.name.startswith(RUNTIME_PREFIXES):
-        copy(path, tree / TARGET / "sysroot" / "lib" / path.name)
+syslib = INSTALL / TARGET / "sysroot" / "lib"
+if syslib.is_dir():
+    for path in syslib.iterdir():
+        if path.is_dir() or not path.name.startswith(RUNTIME_PREFIXES):
+            copy(path, tree / TARGET / "sysroot" / "lib" / path.name)
 copy(INSTALL / TARGET / "lib", tree / TARGET / "lib")
 copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
 
@@ -115,7 +119,6 @@ revision = subprocess.check_output(
 ).strip()
 driver = f"{TARGET}/bin/{TARGET}-gcc"
 version = subprocess.check_output([tree.parent / driver, "--version"], text=True).strip()
-bootstrap_archive = ROOT / "bootstrap.tar.xz"
 provenance = {
     "family": FAMILY,
     "date": BUILD,
@@ -126,8 +129,7 @@ provenance = {
     "version": version,
     "languages": ["c", "lto"],
     "gcc_checking": "yes",
-    "bootstrap_source": f"https://compiler-explorer.s3.amazonaws.com/opt/loongarch64-gcc-{BOOTSTRAP_VERSION}.tar.xz",
-    "bootstrap_sha256": sha256(bootstrap_archive),
+    "cross_tools_source": cross_source,
 }
 (tree.parent / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
 

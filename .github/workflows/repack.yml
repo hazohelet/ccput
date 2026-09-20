@@ -49,7 +49,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag='${{ steps.plan.outputs.tag }}'
-          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket are repacked to the parts a C compile touches. loongarch64-gcc-assertions-trunk is built here from GCC trunk with C and LTO only and --enable-checking=yes, using the pinned Compiler Explorer LoongArch toolchain for binutils and its sysroot. Each asset carries provenance.json naming its exact source; manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries build.log.bz2 with its configure/build details. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
+          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket are repacked to the parts a C compile touches. loongarch64-gcc-assertions-trunk is built here from GCC trunk with C and LTO only and --enable-checking=yes, using Ubuntu 24.04's cross binutils and cross libc packages for its target tools and sysroot. Each asset carries provenance.json naming its exact source; manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries build.log.bz2 with its configure/build details. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
             --title "nightlies $tag" \
             --notes "$notes"
@@ -127,12 +127,11 @@ jobs:
   build-loongarch64:
     needs: plan
     if: needs.plan.outputs.build_loongarch64 == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      TARGET: loongarch64-unknown-linux-gnu
+      TARGET: loongarch64-linux-gnu
       FAMILY: loongarch64-gcc-assertions-trunk
-      BOOTSTRAP_VERSION: 16.1.0
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -140,20 +139,19 @@ jobs:
           repository: gcc-mirror/gcc
           path: gcc
           fetch-depth: 1
-      - name: Install the build tools and libfl for the bootstrap ar and ranlib
-        run: >
-          sudo apt-get update &&
-          sudo apt-get install -y
-          build-essential bison flex gawk texinfo zlib1g-dev libfl2
+      - name: Install the build tools and the Ubuntu cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bison flex gawk texinfo zlib1g-dev patchelf \
+            binutils-loongarch64-linux-gnu \
+            libc6-dev-loong64-cross
+          dpkg-query -W -f='${Package} ${Version}\n' \
+            binutils-loongarch64-linux-gnu \
+            libc6-dev-loong64-cross \
+            libc6-loong64-cross > ubuntu-cross.txt
       - name: Fetch GCC's pinned build prerequisites
         run: cd gcc && ./contrib/download_prerequisites
-      - name: Fetch the pinned LoongArch binutils and sysroot
-        run: |
-          url="https://compiler-explorer.s3.amazonaws.com/opt/loongarch64-gcc-${BOOTSTRAP_VERSION}.tar.xz"
-          curl --fail --location --retry 3 --output bootstrap.tar.xz "$url"
-          mkdir bootstrap
-          tar -xf bootstrap.tar.xz -C bootstrap
-          sha256sum bootstrap.tar.xz > bootstrap.sha256
       - name: Build the assertions-enabled C compiler
         run: .github/scripts/build-loongarch64-gcc.sh
       - name: Package only what C compilation needs
