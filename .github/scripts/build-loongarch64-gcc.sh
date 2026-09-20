@@ -54,8 +54,8 @@ printf ' %q' "${configure[@]}" >> configure.log
 printf '\n' >> configure.log
 "${configure[@]}" 2>&1 | tee -a configure.log
 
-grep -q '^#define ENABLE_ASSERT_CHECKING 1' gcc/auto-host.h
 make -j"$(nproc)" all-gcc all-target-libgcc 2>&1 | tee build.log
+grep -q '^#define ENABLE_ASSERT_CHECKING 1' gcc/auto-host.h
 make install-gcc install-target-libgcc 2>&1 | tee install.log
 
 "$install/bin/$TARGET-gcc" -v
