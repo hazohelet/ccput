@@ -52,13 +52,15 @@ for tool in ar ranlib; do
 done
 
 # Upstream gcc looks for a lib64-style lp64d sysroot; the Ubuntu cross
-# packages keep everything under /usr/$TARGET. Reassemble the layout gcc
-# expects, with the runtime objects also visible at /lib64 for the loader.
+# packages keep everything under /usr/$TARGET and express the lib↔lib64
+# split as symlinks. Reassemble the layout gcc expects as real files
+# (dereferenced, so no symlink dangles once the pieces move), with the
+# runtime objects also visible at /lib64 for the loader.
 sysroot="$install/$TARGET/sysroot"
 mkdir -p "$sysroot/usr/lib64" "$sysroot/lib64"
-cp -a "$cross/include" "$sysroot/usr/"
-cp -a "$cross/lib/." "$sysroot/usr/lib64/"
-cp -a "$cross/lib64/." "$sysroot/usr/lib64/"
+cp -aL "$cross/include" "$sysroot/usr/"
+cp -aL "$cross/lib/." "$sysroot/usr/lib64/"
+cp -aL "$cross/lib64/." "$sysroot/usr/lib64/"
 for path in "$sysroot/usr/lib64"/*; do
   name=${path##*/}
   case "$name" in
