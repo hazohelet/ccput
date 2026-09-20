@@ -44,27 +44,39 @@ DIST.mkdir(exist_ok=True)
 staging = DIST / f".staging-{FAMILY}-{BUILD}"
 subprocess.run(["chmod", "-R", "u+w", staging], check=False)
 shutil.rmtree(staging, ignore_errors=True)
-tree = staging / f"{FAMILY}-{BUILD}" / TARGET
+
+# A cross build nests everything under the target triplet (matching the
+# Compiler Explorer layout); a native build lays it out flat, like CE's host
+# archives: bin/, lib/, lib64/, libexec/ directly under the family root.
+cross_build = (INSTALL / TARGET / "sysroot").is_dir()
+tree = staging / f"{FAMILY}-{BUILD}"
+if cross_build:
+    tree = tree / TARGET
 tree.mkdir(parents=True)
 
 # The install contains only the C/LTO GCC build. Keep its C-facing programs,
 # compiler proper, startup objects, libgcc, headers, and the target tools and
 # sysroot the cross build assembled.
 copy(INSTALL / "bin", tree / "bin")
-for source in (INSTALL / TARGET / "bin", INSTALL / TARGET / "lib", INSTALL / "lib64"):
-    if source.is_dir():
-        copy(source, tree / source.relative_to(INSTALL))
-copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
-
-sysroot = INSTALL / TARGET / "sysroot"
-if sysroot.is_dir():
-    copy(sysroot / "usr" / "include", tree / TARGET / "sysroot" / "usr" / "include")
-    copy(sysroot / "usr" / "lib", tree / TARGET / "sysroot" / "usr" / "lib")
+if cross_build:
+    for name in ("bin", "lib"):
+        source = INSTALL / TARGET / name
+        if source.is_dir():
+            copy(source, tree / name)
+    sysroot = INSTALL / TARGET / "sysroot"
+    copy(sysroot / "usr" / "include", tree / "sysroot" / "usr" / "include")
+    copy(sysroot / "usr" / "lib", tree / "sysroot" / "usr" / "lib")
     # Recreate the alias symlinks the build script set up: one real lib
     # directory, every name the linker or the loader may look for.
-    (tree / TARGET / "sysroot" / "lib").symlink_to("usr/lib")
-    (tree / TARGET / "sysroot" / "lib64").symlink_to("usr/lib")
-    (tree / TARGET / "sysroot" / "usr" / "lib64").symlink_to("lib")
+    (tree / "sysroot" / "lib").symlink_to("usr/lib")
+    (tree / "sysroot" / "lib64").symlink_to("usr/lib")
+    (tree / "sysroot" / "usr" / "lib64").symlink_to("lib")
+else:
+    for name in ("lib", "lib64"):
+        source = INSTALL / name
+        if source.is_dir():
+            copy(source, tree / name)
+copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
 
 for path in (INSTALL / "lib" / "gcc" / TARGET).glob("*/include*"):
     copy(path, tree / "lib" / "gcc" / TARGET / path.parent.name / path.name)
@@ -120,7 +132,6 @@ def strip_debug(path: Path) -> None:
     subprocess.run(["strip", "--strip-debug", path], check=True)
 
 
-cross_build = sysroot.is_dir()
 patterns = (
     (f"{TARGET}-gcc*", f"{TARGET}-cpp", f"{TARGET}-gcov*")
     if cross_build

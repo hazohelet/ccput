@@ -256,7 +256,7 @@
  "built": [
   {
    "family": "gcc-assertions-trunk",
-   "target": "x86_64-linux-gnu",
+   "target": "x86_64-pc-linux-gnu",
    "cross": "",
    "driver": "bin/gcc",
    "arch": [],
@@ -276,7 +276,7 @@
    "cross": "armhf",
    "driver": "arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
    "arch": [
-    "--with-arch=armv7-a"
+    "--with-arch=armv7-a+fp"
    ],
    "shims": false
   },

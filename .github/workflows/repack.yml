@@ -179,7 +179,7 @@ jobs:
 
   check-gcc:
     needs: [plan, qemu, build-gcc]
-    if: needs.plan.outputs.build_any == 'true'
+    if: always() && needs.plan.outputs.build_any == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
@@ -189,30 +189,39 @@ jobs:
       FAMILY: ${{ matrix.family }}
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/download-artifact@v8
+      - name: Fetch the build
+        id: fetch
+        continue-on-error: true
+        uses: actions/download-artifact@v8
         with:
           name: built-${{ matrix.family }}-${{ needs.plan.outputs.tag }}
           path: dist
+      - name: Note the missing build
+        if: steps.fetch.outcome != 'success'
+        run: echo "::notice::no build artifact for $FAMILY; its build leg failed"
       - uses: actions/download-artifact@v8
-        if: matrix.cross != ''
+        if: matrix.cross != '' && steps.fetch.outcome == 'success'
         with:
           name: qemu-store
           path: qemu
       - name: Unpack the pinned qemu
-        if: matrix.cross != ''
+        if: matrix.cross != '' && steps.fetch.outcome == 'success'
         run: |
           sudo mkdir -p /nix/store
           sudo tar -xf qemu/qemu-store.tar.zst -C /nix/store
           echo "CCPUT_QEMU=$(cat qemu/out-path)/bin" >> "$GITHUB_ENV"
       - name: Check the result compiles, links and runs a program
+        if: steps.fetch.outcome == 'success'
         run: python3 selfcheck.py "$FAMILY" "${{ needs.plan.outputs.tag }}"
       - name: Upload to the nightly release
+        if: steps.fetch.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload '${{ needs.plan.outputs.tag }}' \
             "dist/${FAMILY}-${{ needs.plan.outputs.tag }}.tar.xz" --clobber
       - uses: actions/upload-artifact@v7
+        if: steps.fetch.outcome == 'success'
         with:
           name: record-${{ matrix.family }}
           path: dist/${{ matrix.family }}-${{ needs.plan.outputs.tag }}.record.json
