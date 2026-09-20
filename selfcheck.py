@@ -12,10 +12,15 @@ ROOT = Path(__file__).resolve().parent
 
 QEMU_ARCH = {
     "arm-gcc": "arm",
+    "arm-gcc-assertions": "arm",
     "arm64-gcc": "aarch64",
+    "arm64-gcc-assertions": "aarch64",
     "riscv64-gcc": "riscv64",
+    "riscv64-gcc-assertions": "riscv64",
     "powerpc64-gcc": "ppc64",
+    "powerpc64-gcc-assertions": "ppc64",
     "powerpc64le-gcc": "ppc64le",
+    "powerpc64le-gcc-assertions": "ppc64le",
     "loongarch64-gcc": "loongarch64",
     "loongarch64-gcc-assertions": "loongarch64",
 }

@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DIST = ROOT / "dist"
 FAMILY = os.environ["FAMILY"]
 TARGET = os.environ["TARGET"]
+DRIVER = os.environ["DRIVER"]
 BUILD = os.environ["BUILD"]
 TAG = os.environ["TAG"]
 INSTALL = ROOT / "gcc-install"
@@ -41,34 +42,29 @@ def sha256(path: Path) -> str:
 
 DIST.mkdir(exist_ok=True)
 staging = DIST / f".staging-{FAMILY}-{BUILD}"
+subprocess.run(["chmod", "-R", "u+w", staging], check=False)
 shutil.rmtree(staging, ignore_errors=True)
 tree = staging / f"{FAMILY}-{BUILD}" / TARGET
 tree.mkdir(parents=True)
 
 # The install contains only the C/LTO GCC build. Keep its C-facing programs,
-# compiler proper, startup objects, libgcc, headers, and the pinned linker/sysroot.
+# compiler proper, startup objects, libgcc, headers, and the target tools and
+# sysroot the cross build assembled.
 copy(INSTALL / "bin", tree / "bin")
-copy(INSTALL / TARGET / "bin", tree / TARGET / "bin")
-# The sysroot is a full target rootfs; keep the parts a C compile touches and
-# drop the other languages' runtimes, as the repacked families' drop list does.
-for part in ("usr/include", "usr/lib64", "lib64"):
-    copy(INSTALL / TARGET / "sysroot" / part, tree / TARGET / "sysroot" / part)
-RUNTIME_PREFIXES = (
-    "libga68",
-    "libgdruntime",
-    "libgfortran",
-    "libgphobos",
-    "libstdc++",
-    "libsupc++",
-    "libobjc",
-)
-syslib = INSTALL / TARGET / "sysroot" / "lib"
-if syslib.is_dir():
-    for path in syslib.iterdir():
-        if path.is_dir() or not path.name.startswith(RUNTIME_PREFIXES):
-            copy(path, tree / TARGET / "sysroot" / "lib" / path.name)
-copy(INSTALL / TARGET / "lib", tree / TARGET / "lib")
+for source in (INSTALL / TARGET / "bin", INSTALL / TARGET / "lib", INSTALL / "lib64"):
+    if source.is_dir():
+        copy(source, tree / source.relative_to(INSTALL))
 copy(INSTALL / "share" / "licenses", tree / "share" / "licenses")
+
+sysroot = INSTALL / TARGET / "sysroot"
+if sysroot.is_dir():
+    copy(sysroot / "usr" / "include", tree / TARGET / "sysroot" / "usr" / "include")
+    copy(sysroot / "usr" / "lib", tree / TARGET / "sysroot" / "usr" / "lib")
+    # Recreate the alias symlinks the build script set up: one real lib
+    # directory, every name the linker or the loader may look for.
+    (tree / TARGET / "sysroot" / "lib").symlink_to("usr/lib")
+    (tree / TARGET / "sysroot" / "lib64").symlink_to("usr/lib")
+    (tree / TARGET / "sysroot" / "usr" / "lib64").symlink_to("lib")
 
 for path in (INSTALL / "lib" / "gcc" / TARGET).glob("*/include*"):
     copy(path, tree / "lib" / "gcc" / TARGET / path.parent.name / path.name)
@@ -88,25 +84,8 @@ for name in (
         copy(path, tree / "libexec" / "gcc" / TARGET / path.parent.name / path.name)
 
 # lto-dump only inspects LTO bytecode; no compile ever runs it.
-for path in tree.glob(f"bin/{TARGET}-lto-dump*"):
+for path in tree.glob("bin/*lto-dump*"):
     path.unlink()
-
-# The build is -g with checking, and the debug info dwarfs the code. Keep the
-# symbol tables, drop the line info, and leave the pinned binutils untouched.
-def strip_debug(path: Path) -> None:
-    with path.open("rb") as stream:
-        if stream.read(4) != b"\x7fELF":
-            return
-    subprocess.run(["strip", "--strip-debug", path], check=True)
-
-
-for pattern in (f"{TARGET}-gcc*", f"{TARGET}-cpp", f"{TARGET}-gcov*"):
-    for path in (tree / "bin").glob(pattern):
-        if not path.is_symlink():
-            strip_debug(path)
-for path in (tree / "libexec" / "gcc" / TARGET).glob("*/*"):
-    if path.is_file() and not path.is_symlink():
-        strip_debug(path)
 
 logs = b""
 for name in ("configure.log", "build.log", "install.log"):
@@ -117,21 +96,43 @@ for name in ("configure.log", "build.log", "install.log"):
 revision = subprocess.check_output(
     ["git", "-C", SOURCE, "rev-parse", "HEAD"], text=True
 ).strip()
-driver = f"{TARGET}/bin/{TARGET}-gcc"
-version = subprocess.check_output([tree.parent / driver, "--version"], text=True).strip()
+version = subprocess.check_output([tree.parent / DRIVER, "--version"], text=True).strip()
 provenance = {
     "family": FAMILY,
     "date": BUILD,
     "tag": TAG,
     "source": f"https://github.com/gcc-mirror/gcc/commit/{revision}",
     "gcc_revision": revision,
-    "driver": driver,
+    "driver": DRIVER,
     "version": version,
     "languages": ["c", "lto"],
     "gcc_checking": "yes",
     "cross_tools_source": cross_source,
 }
 (tree.parent / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")
+
+# The build is -g with checking, and the debug info dwarfs the code. Keep the
+# symbol tables, drop the line info, and leave the pinned binutils untouched.
+def strip_debug(path: Path) -> None:
+    with path.open("rb") as stream:
+        if stream.read(4) != b"\x7fELF":
+            return
+    subprocess.run(["strip", "--strip-debug", path], check=True)
+
+
+cross_build = sysroot.is_dir()
+patterns = (
+    (f"{TARGET}-gcc*", f"{TARGET}-cpp", f"{TARGET}-gcov*")
+    if cross_build
+    else ("gcc", "gcc-*", "cpp", "gcov", "gcov-*")
+)
+for pattern in patterns:
+    for path in (tree / "bin").glob(pattern):
+        if not path.is_symlink():
+            strip_debug(path)
+for path in (tree / "libexec" / "gcc" / TARGET).glob("*/*"):
+    if path.is_file() and not path.is_symlink():
+        strip_debug(path)
 
 asset = DIST / f"{FAMILY}-{BUILD}.tar.xz"
 asset.unlink(missing_ok=True)
@@ -154,7 +155,7 @@ subprocess.run(
     ],
     check=True,
 )
-# The bootstrap sysroot ships read-only directories; copytree preserves their
+# The bootstrap sysroots ship read-only directories; copytree preserves their
 # modes, so make staging user-writable again before removing it.
 subprocess.run(["chmod", "-R", "u+w", staging], check=True)
 shutil.rmtree(staging)

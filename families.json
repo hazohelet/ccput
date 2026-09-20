@@ -35,7 +35,8 @@
     "lib/gcc/*/*/include-fixed/",
     "lib64/lib*",
     "lib/lib*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "clang-trunk",
@@ -80,7 +81,8 @@
     "lib/gcc/*/*/include-fixed/",
     "lib64/lib*",
     "lib/lib*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "arm-gcc-trunk",
@@ -107,7 +109,8 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "arm64-gcc-trunk",
@@ -134,7 +137,8 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "loongarch64-gcc-trunk",
@@ -161,7 +165,8 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "powerpc64-gcc-trunk",
@@ -188,7 +193,8 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "powerpc64le-gcc-trunk",
@@ -215,7 +221,8 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
   },
   {
    "name": "riscv64-gcc-trunk",
@@ -242,7 +249,70 @@
     "*/*/sysroot/usr/lib/",
     "*/*/sysroot/usr/lib64/",
     "*/build.log*"
-   ]
+   ],
+   "nightly": "build"
+  }
+ ],
+ "built": [
+  {
+   "family": "gcc-assertions-trunk",
+   "target": "x86_64-linux-gnu",
+   "cross": "",
+   "driver": "bin/gcc",
+   "arch": [],
+   "shims": false
+  },
+  {
+   "family": "arm64-gcc-assertions-trunk",
+   "target": "aarch64-linux-gnu",
+   "cross": "arm64",
+   "driver": "aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc",
+   "arch": [],
+   "shims": false
+  },
+  {
+   "family": "arm-gcc-assertions-trunk",
+   "target": "arm-linux-gnueabihf",
+   "cross": "armhf",
+   "driver": "arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
+   "arch": [
+    "--with-arch=armv7-a"
+   ],
+   "shims": false
+  },
+  {
+   "family": "riscv64-gcc-assertions-trunk",
+   "target": "riscv64-linux-gnu",
+   "cross": "riscv64",
+   "driver": "riscv64-linux-gnu/bin/riscv64-linux-gnu-gcc",
+   "arch": [],
+   "shims": false
+  },
+  {
+   "family": "powerpc64-gcc-assertions-trunk",
+   "target": "powerpc64-linux-gnu",
+   "cross": "ppc64",
+   "driver": "powerpc64-linux-gnu/bin/powerpc64-linux-gnu-gcc",
+   "arch": [],
+   "shims": false
+  },
+  {
+   "family": "powerpc64le-gcc-assertions-trunk",
+   "target": "powerpc64le-linux-gnu",
+   "cross": "ppc64el",
+   "driver": "powerpc64le-linux-gnu/bin/powerpc64le-linux-gnu-gcc",
+   "arch": [],
+   "shims": false
+  },
+  {
+   "family": "loongarch64-gcc-assertions-trunk",
+   "target": "loongarch64-linux-gnu",
+   "cross": "loong64",
+   "driver": "loongarch64-linux-gnu/bin/loongarch64-linux-gnu-gcc",
+   "arch": [
+    "--with-arch=loongarch64"
+   ],
+   "shims": true
   }
  ]
 }

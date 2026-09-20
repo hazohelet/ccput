@@ -17,6 +17,9 @@ BUCKET = "https://compiler-explorer.s3.amazonaws.com"
 ROOT = Path(__file__).resolve().parents[2]
 FAMILIES = json.loads((ROOT / "families.json").read_text())["families"]
 NAMES = {f["name"] for f in FAMILIES}
+# Families whose nightly is built in CI, not repacked from the bucket; the
+# bucket's nightly tarballs for them are not consumed and never stale.
+BUCKET_TRUNK = {f["name"] for f in FAMILIES if f.get("nightly") != "build"}
 
 
 def bucket_keys():
@@ -85,7 +88,7 @@ today = subprocess.run(
     ["date", "-u", "+%Y%m%d"], capture_output=True, text=True
 ).stdout.strip()
 stale = []
-for name in sorted(NAMES & set(trunk)):
+for name in sorted(BUCKET_TRUNK & set(trunk)):
     newest = max(trunk[name])
     age = int(today) - int(newest)
     mark = ""

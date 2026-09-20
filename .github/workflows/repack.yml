@@ -49,7 +49,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag='${{ steps.plan.outputs.tag }}'
-          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket are repacked to the parts a C compile touches. loongarch64-gcc-assertions-trunk is built here from GCC trunk with C and LTO only and --enable-checking=yes, using Ubuntu 24.04's cross binutils and cross libc packages for its target tools and sysroot. Each asset carries provenance.json naming its exact source; manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries build.log.bz2 with its configure/build details. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
+          notes="Trunk clang from Compiler Explorer's nightly bucket is repacked to the parts a C compile touches. Trunk gcc — the host and every cross target — is built here from GCC trunk with C and LTO only and --enable-checking=yes, using Ubuntu 24.04's own compiler for the host and its cross binutils and libc packages for each target's tools and sysroot. Each asset carries provenance.json naming its exact source; manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), each gcc archive carries build.log.bz2 with its configure/build details and the share/licenses/ tree for the packages it consumed. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive."
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
             --title "nightlies $tag" \
             --notes "$notes"
@@ -124,14 +124,21 @@ jobs:
           path: dist/${{ matrix.family }}-${{ matrix.build }}.record.json
           retention-days: 1
 
-  build-loongarch64:
+  build-gcc:
     needs: plan
-    if: needs.plan.outputs.build_loongarch64 == 'true'
+    if: needs.plan.outputs.build_any == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
-      TARGET: loongarch64-linux-gnu
-      FAMILY: loongarch64-gcc-assertions-trunk
+      FAMILY: ${{ matrix.family }}
+      TARGET: ${{ matrix.target }}
+      CROSS: ${{ matrix.cross }}
+      DRIVER: ${{ matrix.driver }}
+      ARCH_FLAGS: ${{ join(matrix.arch, ' ') }}
+      SHIMS: ${{ matrix.shims }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/checkout@v7
@@ -142,49 +149,56 @@ jobs:
       - name: Install the build tools and the Ubuntu cross toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential bison flex gawk texinfo zlib1g-dev patchelf \
-            binutils-loongarch64-linux-gnu \
-            libc6-dev-loong64-cross
-          dpkg-query -W -f='${Package} ${Version}\n' \
-            binutils-loongarch64-linux-gnu \
-            libc6-dev-loong64-cross \
-            libc6-loong64-cross > ubuntu-cross.txt
+          pkgs="build-essential bison flex gawk texinfo zlib1g-dev patchelf"
+          if [ -n "$CROSS" ]; then
+            pkgs="$pkgs binutils-$TARGET libc6-dev-$CROSS-cross"
+          fi
+          sudo apt-get install -y $pkgs
+          if [ -n "$CROSS" ]; then
+            dpkg-query -W -f='${Package} ${Version}\n' \
+              "binutils-$TARGET" "libc6-dev-$CROSS-cross" "libc6-$CROSS-cross" \
+              > ubuntu-cross.txt
+          fi
       - name: Fetch GCC's pinned build prerequisites
         run: cd gcc && ./contrib/download_prerequisites
       - name: Build the assertions-enabled C compiler
-        run: .github/scripts/build-loongarch64-gcc.sh
+        run: .github/scripts/build-gcc.sh
       - name: Package only what C compilation needs
         env:
           BUILD: ${{ needs.plan.outputs.tag }}
           TAG: ${{ needs.plan.outputs.tag }}
-        run: python3 .github/scripts/package-loongarch64-gcc.py
+        run: python3 .github/scripts/package-gcc.py
       - uses: actions/upload-artifact@v7
         with:
-          name: built-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
+          name: built-${{ matrix.family }}-${{ needs.plan.outputs.tag }}
           path: |
-            dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.tar.xz
-            dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.record.json
+            dist/${{ matrix.family }}-${{ needs.plan.outputs.tag }}.tar.xz
+            dist/${{ matrix.family }}-${{ needs.plan.outputs.tag }}.record.json
           retention-days: 1
 
-  check-loongarch64:
-    needs: [plan, qemu, build-loongarch64]
-    if: needs.plan.outputs.build_loongarch64 == 'true'
-    runs-on: ubuntu-latest
+  check-gcc:
+    needs: [plan, qemu, build-gcc]
+    if: needs.plan.outputs.build_any == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.build_matrix) }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      FAMILY: loongarch64-gcc-assertions-trunk
+      FAMILY: ${{ matrix.family }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          name: built-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
+          name: built-${{ matrix.family }}-${{ needs.plan.outputs.tag }}
           path: dist
       - uses: actions/download-artifact@v8
+        if: matrix.cross != ''
         with:
           name: qemu-store
           path: qemu
       - name: Unpack the pinned qemu
+        if: matrix.cross != ''
         run: |
           sudo mkdir -p /nix/store
           sudo tar -xf qemu/qemu-store.tar.zst -C /nix/store
@@ -199,12 +213,12 @@ jobs:
             "dist/${FAMILY}-${{ needs.plan.outputs.tag }}.tar.xz" --clobber
       - uses: actions/upload-artifact@v7
         with:
-          name: record-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
-          path: dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.record.json
+          name: record-${{ matrix.family }}
+          path: dist/${{ matrix.family }}-${{ needs.plan.outputs.tag }}.record.json
           retention-days: 1
 
   publish:
-    needs: [plan, repack, check-loongarch64]
+    needs: [plan, repack, check-gcc]
     if: always() && needs.plan.outputs.nightly == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -22,7 +22,7 @@ DIST = Path(os.environ.get("CCPUT_DIST", ROOT / "dist"))
 TABLE = json.loads((ROOT / "families.json").read_text())
 FAMILIES = {f["name"]: f for f in TABLE["families"]}
 DROP = TABLE["drop"]
-BUILT_FAMILIES = {"loongarch64-gcc-assertions-trunk"}
+BUILT = {f["family"]: f for f in TABLE["built"]}
 
 
 def die(message: str):
@@ -395,22 +395,46 @@ def cmd_plan(args) -> int:
     if not re.fullmatch(r"\d{8}", tag):
         die("a nightly release tag is a YYYYMMDD date")
     requested = set(args.family)
-    unknown = requested - FAMILIES.keys() - BUILT_FAMILIES
+    unknown = requested - FAMILIES.keys() - BUILT.keys()
     if unknown:
         die(f"unknown family {sorted(unknown)[0]!r}")
-    build_loongarch64 = not requested or bool(requested & BUILT_FAMILIES)
-    include, nightly = [], 0
     have = set(os.environ.get("CCPUT_RELEASES", "").split())
+
+    # The gcc nightly families this workflow builds itself, not repacks.
+    build_include = []
+    for name, family in BUILT.items():
+        if requested and name not in requested:
+            continue
+        if f"{name}-{tag}" in have:
+            print(f"{name}-{tag}: already released", file=sys.stderr)
+            continue
+        build_include.append(
+            {
+                "family": name,
+                "target": family["target"],
+                "cross": family["cross"],
+                "driver": family["driver"],
+                "arch": family["arch"],
+                "shims": family["shims"],
+                "tag": tag,
+            }
+        )
+    build_any = bool(build_include)
+
+    include, nightly = [], 0
     bucket_families = (
         [name for name in args.family if name in FAMILIES] if requested else FAMILIES
     )
     for name in bucket_families:
-        date = newest_date(name)
-        if date is None:
-            print(f"{name}: nothing in the bucket", file=sys.stderr)
-        else:
-            include.append({"family": name, "build": date, "tag": tag, "kind": "nightly"})
-            nightly += 1
+        if FAMILIES[name].get("nightly") != "build":
+            date = newest_date(name)
+            if date is None:
+                print(f"{name}: nothing in the bucket", file=sys.stderr)
+            else:
+                include.append(
+                    {"family": name, "build": date, "tag": tag, "kind": "nightly"}
+                )
+                nightly += 1
         stable = name.removesuffix("-trunk")
         for version in stable_builds(stable):
             stable_tag = f"{stable}-{version}"
@@ -432,27 +456,26 @@ def cmd_plan(args) -> int:
                 }
             )
     matrix = {"include": include}
+    build_matrix = {"include": build_include}
     print(json.dumps(matrix))
     print(
         f"{len(include)} to repack ({nightly} nightly, {len(include) - nightly} stable); "
-        f"LoongArch64 assertions build: {'yes' if build_loongarch64 else 'no'}",
+        f"{len(build_include)} gcc assertions build"
+        f"{'' if len(build_include) == 1 else 's'}",
         file=sys.stderr,
     )
     if output := os.environ.get("GITHUB_OUTPUT"):
         with open(output, "a") as f:
             f.write(f"matrix={json.dumps(matrix)}\n")
+            f.write(f"build_matrix={json.dumps(build_matrix)}\n")
             f.write(f"any={'true' if include else 'false'}\n")
-            f.write(
-                f"nightly={'true' if nightly or build_loongarch64 else 'false'}\n"
-            )
+            f.write(f"build_any={'true' if build_any else 'false'}\n")
+            f.write(f"nightly={'true' if nightly or build_any else 'false'}\n")
             hosts = ("gcc", "gcc-assertions", "clang", "clang-assertions")
             cross = any(
                 e["family"].removesuffix("-trunk") not in hosts for e in include
-            ) or build_loongarch64
+            ) or any(e["cross"] for e in build_include)
             f.write(f"cross={'true' if cross else 'false'}\n")
-            f.write(
-                f"build_loongarch64={'true' if build_loongarch64 else 'false'}\n"
-            )
             f.write(f"tag={tag}\n")
     return 0
 
