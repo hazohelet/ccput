@@ -22,6 +22,7 @@ DIST = Path(os.environ.get("CCPUT_DIST", ROOT / "dist"))
 TABLE = json.loads((ROOT / "families.json").read_text())
 FAMILIES = {f["name"]: f for f in TABLE["families"]}
 DROP = TABLE["drop"]
+BUILT_FAMILIES = {"loongarch64-gcc-assertions-trunk"}
 
 
 def die(message: str):
@@ -393,11 +394,17 @@ def cmd_plan(args) -> int:
     tag = args.tag or datetime.now(timezone.utc).strftime("%Y%m%d")
     if not re.fullmatch(r"\d{8}", tag):
         die("a nightly release tag is a YYYYMMDD date")
+    requested = set(args.family)
+    unknown = requested - FAMILIES.keys() - BUILT_FAMILIES
+    if unknown:
+        die(f"unknown family {sorted(unknown)[0]!r}")
+    build_loongarch64 = not requested or bool(requested & BUILT_FAMILIES)
     include, nightly = [], 0
     have = set(os.environ.get("CCPUT_RELEASES", "").split())
-    for name in args.family or FAMILIES:
-        if name not in FAMILIES:
-            die(f"unknown family {name!r}")
+    bucket_families = (
+        [name for name in args.family if name in FAMILIES] if requested else FAMILIES
+    )
+    for name in bucket_families:
         date = newest_date(name)
         if date is None:
             print(f"{name}: nothing in the bucket", file=sys.stderr)
@@ -427,19 +434,25 @@ def cmd_plan(args) -> int:
     matrix = {"include": include}
     print(json.dumps(matrix))
     print(
-        f"{len(include)} to repack ({nightly} nightly, {len(include) - nightly} stable)",
+        f"{len(include)} to repack ({nightly} nightly, {len(include) - nightly} stable); "
+        f"LoongArch64 assertions build: {'yes' if build_loongarch64 else 'no'}",
         file=sys.stderr,
     )
     if output := os.environ.get("GITHUB_OUTPUT"):
         with open(output, "a") as f:
             f.write(f"matrix={json.dumps(matrix)}\n")
             f.write(f"any={'true' if include else 'false'}\n")
-            f.write(f"nightly={'true' if nightly else 'false'}\n")
+            f.write(
+                f"nightly={'true' if nightly or build_loongarch64 else 'false'}\n"
+            )
             hosts = ("gcc", "gcc-assertions", "clang", "clang-assertions")
             cross = any(
                 e["family"].removesuffix("-trunk") not in hosts for e in include
-            )
+            ) or build_loongarch64
             f.write(f"cross={'true' if cross else 'false'}\n")
+            f.write(
+                f"build_loongarch64={'true' if build_loongarch64 else 'false'}\n"
+            )
             f.write(f"tag={tag}\n")
     return 0
 
@@ -457,7 +470,7 @@ def cmd_manifest(args) -> int:
         die(f"no records for release {args.tag} under {DIST}")
     manifest = {
         "release": args.tag,
-        "note": "Repacked Compiler Explorer nightlies; nothing here is built from source.",
+        "note": "Compiler nightlies, either repacked from Compiler Explorer or built by this workflow; see each asset's provenance.",
         "families": sorted({e["family"] for e in entries}),
         "assets": sorted(entries, key=lambda e: e["family"]),
     }

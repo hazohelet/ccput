@@ -30,6 +30,7 @@ jobs:
       any: ${{ steps.plan.outputs.any }}
       nightly: ${{ steps.plan.outputs.nightly }}
       cross: ${{ steps.plan.outputs.cross }}
+      build_loongarch64: ${{ steps.plan.outputs.build_loongarch64 }}
       tag: ${{ steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
@@ -48,7 +49,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag='${{ steps.plan.outputs.tag }}'
-          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket, repacked to the parts a C compile touches; no compiler is built here. Each asset is named for the day it was built and carries a provenance.json naming its exact source commit (gcc_revision / llvm_revision); manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries the upstream build.log.bz2 with the exact sources, configure and build flags. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
+          notes="Trunk gcc and clang from Compiler Explorer's nightly bucket are repacked to the parts a C compile touches. loongarch64-gcc-assertions-trunk is built here from GCC trunk with C and LTO only and --enable-checking=yes, using the pinned Compiler Explorer LoongArch toolchain for binutils and its sysroot. Each asset carries provenance.json naming its exact source; manifest.json indexes the release. gcc and binutils are GPLv3 — the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), and each cross gcc archive carries build.log.bz2 with its configure/build details. clang is Apache-2.0 — LLVM's LICENSE.TXT ships inside each clang archive, and the share/licenses/ trees inside the cross gcc archives. The host gcc-trunk build ships no license file upstream; it is GPLv3: https://www.gnu.org/licenses/gpl-3.0.html"
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
             --title "nightlies $tag" \
             --notes "$notes"
@@ -123,8 +124,74 @@ jobs:
           path: dist/${{ matrix.family }}-${{ matrix.build }}.record.json
           retention-days: 1
 
+  build-loongarch64:
+    needs: [plan, qemu]
+    if: needs.plan.outputs.build_loongarch64 == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      TARGET: loongarch64-unknown-linux-gnu
+      FAMILY: loongarch64-gcc-assertions-trunk
+      BOOTSTRAP_VERSION: 16.1.0
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: gcc-mirror/gcc
+          path: gcc
+          fetch-depth: 1
+      - name: Install GCC build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bison flex libgmp-dev libisl-dev libmpc-dev libmpfr-dev \
+            libzstd-dev texinfo zlib1g-dev
+      - name: Fetch GCC's pinned build prerequisites
+        working-directory: gcc
+        run: ./contrib/download_prerequisites
+      - name: Fetch the pinned LoongArch binutils and sysroot
+        run: |
+          url="https://compiler-explorer.s3.amazonaws.com/opt/loongarch64-gcc-${BOOTSTRAP_VERSION}.tar.xz"
+          curl --fail --location --retry 3 --output bootstrap.tar.xz "$url"
+          mkdir bootstrap
+          tar -xf bootstrap.tar.xz -C bootstrap
+          sha256sum bootstrap.tar.xz > bootstrap.sha256
+      - name: Build the assertions-enabled C compiler
+        run: .github/scripts/build-loongarch64-gcc.sh
+      - name: Package only what C compilation needs
+        env:
+          BUILD: ${{ needs.plan.outputs.tag }}
+          TAG: ${{ needs.plan.outputs.tag }}
+        run: python3 .github/scripts/package-loongarch64-gcc.py
+      - name: Remove build inputs before the relocatability check
+        run: |
+          rm -rf -- gcc-build gcc-install bootstrap
+          rm -f -- bootstrap.tar.xz
+      - uses: actions/download-artifact@v8
+        with:
+          name: qemu-store
+          path: qemu
+      - name: Unpack the pinned qemu
+        run: |
+          sudo mkdir -p /nix/store
+          sudo tar -xf qemu/qemu-store.tar.zst -C /nix/store
+          echo "CCPUT_QEMU=$(cat qemu/out-path)/bin" >> "$GITHUB_ENV"
+      - name: Check the result compiles, links and runs a program
+        run: python3 selfcheck.py "$FAMILY" "${{ needs.plan.outputs.tag }}"
+      - name: Upload to the nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload '${{ needs.plan.outputs.tag }}' \
+            "dist/${FAMILY}-${{ needs.plan.outputs.tag }}.tar.xz" --clobber
+      - uses: actions/upload-artifact@v7
+        with:
+          name: record-loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}
+          path: dist/loongarch64-gcc-assertions-trunk-${{ needs.plan.outputs.tag }}.record.json
+          retention-days: 1
+
   publish:
-    needs: [plan, repack]
+    needs: [plan, repack, build-loongarch64]
     if: always() && needs.plan.outputs.nightly == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20

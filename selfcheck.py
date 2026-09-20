@@ -17,6 +17,7 @@ QEMU_ARCH = {
     "powerpc64-gcc": "ppc64",
     "powerpc64le-gcc": "ppc64le",
     "loongarch64-gcc": "loongarch64",
+    "loongarch64-gcc-assertions": "loongarch64",
 }
 
 PROBE = r"""
