@@ -30,7 +30,8 @@ jobs:
       any: ${{ steps.plan.outputs.any }}
       nightly: ${{ steps.plan.outputs.nightly }}
       cross: ${{ steps.plan.outputs.cross }}
-      build_loongarch64: ${{ steps.plan.outputs.build_loongarch64 }}
+      build_matrix: ${{ steps.plan.outputs.build_matrix }}
+      build_any: ${{ steps.plan.outputs.build_any }}
       tag: ${{ steps.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v7
