@@ -428,7 +428,9 @@ def cmd_plan(args) -> int:
         [name for name in args.family if name in FAMILIES] if requested else FAMILIES
     )
     for name in bucket_families:
-        if FAMILIES[name].get("nightly") != "build":
+        # A "nightly" marker means the nightly never comes from the bucket:
+        # "build" for the families built here, "none" for ones not mirrored.
+        if "nightly" not in FAMILIES[name]:
             date = newest_date(name)
             if date is None:
                 print(f"{name}: nothing in the bucket", file=sys.stderr)

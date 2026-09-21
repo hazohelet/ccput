@@ -17,9 +17,9 @@ BUCKET = "https://compiler-explorer.s3.amazonaws.com"
 ROOT = Path(__file__).resolve().parents[2]
 FAMILIES = json.loads((ROOT / "families.json").read_text())["families"]
 NAMES = {f["name"] for f in FAMILIES}
-# Families whose nightly is built in CI, not repacked from the bucket; the
-# bucket's nightly tarballs for them are not consumed and never stale.
-BUCKET_TRUNK = {f["name"] for f in FAMILIES if f.get("nightly") != "build"}
+# Families whose nightly never comes from the bucket ("build" = built here,
+# "none" = not mirrored); their bucket tarballs are never stale findings.
+BUCKET_TRUNK = {f["name"] for f in FAMILIES if "nightly" not in f}
 
 
 def bucket_keys():
