@@ -38,14 +38,18 @@ if [[ -n "$CROSS" ]]; then
     cp -L "/usr/bin/$TARGET-$tool" "$install/bin/$TARGET-$tool"
     cp -L "/usr/bin/$TARGET-$tool" "$install/$TARGET/bin/$tool"
   done
-  for lib in \
-    /usr/lib/x86_64-linux-gnu/libbfd-*.so \
-    /usr/lib/x86_64-linux-gnu/libopcodes-*.so \
-    /usr/lib/x86_64-linux-gnu/libctf*.so*
-  do
-    cp -L "$lib" "$install/bin/"
-    cp -L "$lib" "$install/$TARGET/bin/"
-  done
+  # Carry every library the tools load beyond the base system (glibc, zlib,
+  # zstd -- what selfcheck.py accepts of any host): libbfd, libopcodes, the two
+  # libctf, and what those pull in in turn, such as libsframe and libjansson.
+  base='^(ld-linux-x86-64|libc|libm|libdl|libpthread|librt|libstdc\+\+|libgcc_s|libz|libzstd|libtinfo)\.so'
+  ldd "$install/bin/$TARGET-"* \
+    | awk '$2 == "=>" && $3 ~ /^\// { print $3 }' | sort -u \
+    | while read -r lib; do
+        if [[ ! "$(basename "$lib")" =~ $base ]]; then
+          cp -L "$lib" "$install/bin/"
+          cp -L "$lib" "$install/$TARGET/bin/"
+        fi
+      done
   for binary in "$install/bin/$TARGET-"* "$install/$TARGET/bin/"*; do
     patchelf --set-rpath '$ORIGIN' "$binary"
   done
@@ -77,6 +81,15 @@ if [[ -n "$CROSS" ]]; then
     sed -i "s|/usr/$TARGET/lib64|=/usr/lib|g; s|/usr/$TARGET/lib|=/usr/lib|g" "$script"
   done
 fi
+
+# Backports a release needs to build against Ubuntu 24.04's binutils and
+# glibc, kept per major under patches/gcc-<major>/.
+major=$(cut -d. -f1 "$workspace/gcc/gcc/BASE-VER")
+for patch in "$workspace"/patches/gcc-"$major"/*.patch; do
+  [[ -e "$patch" ]] || continue
+  echo "applying $(basename "$patch")"
+  git -C "$workspace/gcc" apply --verbose "$patch"
+done
 
 mkdir -p "$install/share/licenses/gcc"
 cp "$workspace/gcc/COPYING3" "$workspace/gcc/COPYING.RUNTIME" "$install/share/licenses/gcc/"
@@ -111,6 +124,11 @@ if [[ -n "$CROSS" ]]; then
 fi
 # shellcheck disable=SC2206
 configure+=(${ARCH_FLAGS:-})
+
+# A git checkout carries no prebuilt .info manuals, and older releases' texinfo
+# sources predate texinfo 7. Nothing here ships the manuals: a makeinfo that
+# reports no version makes configure skip them.
+export MAKEINFO=true
 
 printf 'configure command:' > configure.log
 printf ' %q' "${configure[@]}" >> configure.log

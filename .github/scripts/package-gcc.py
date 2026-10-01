@@ -5,6 +5,7 @@ import bz2
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,9 +17,14 @@ TARGET = os.environ["TARGET"]
 DRIVER = os.environ["DRIVER"]
 BUILD = os.environ["BUILD"]
 TAG = os.environ["TAG"]
+# The upstream ref checked out: a release tag for a stable build, the pinned
+# trunk commit for a nightly.
+REF = os.environ["REF"]
+STABLE = bool(re.fullmatch(r"\d+\.\d+\.\d+", BUILD))
 INSTALL = ROOT / "gcc-install"
 SOURCE = ROOT / "gcc"
 BUILD_DIR = ROOT / "gcc-build"
+MAJOR = (SOURCE / "gcc" / "BASE-VER").read_text().split(".")[0]
 # Dumped by the build job: the exact cross packages the toolchain consumed.
 cross_txt = ROOT / "ubuntu-cross.txt"
 cross_source = " ".join(cross_txt.read_text().split()) if cross_txt.is_file() else "Ubuntu 24.04 archive"
@@ -48,7 +54,7 @@ shutil.rmtree(staging, ignore_errors=True)
 # The tarball mirrors the install prefix so the driver relocates cleanly.
 # For a cross build the driver sits at <family>/<target>/bin/<target>-gcc, so
 # the prefix root is <family>/<target> and the target-named directories nest
-# once more beneath it. A native build lays out flat, like CE's host archives:
+# once more beneath it. A native build lays out flat:
 # bin/ and lib64/ directly under the family root, driver bin/gcc.
 cross_build = (INSTALL / TARGET / "sysroot").is_dir()
 root = staging / f"{FAMILY}-{BUILD}"
@@ -116,14 +122,17 @@ revision = subprocess.check_output(
 version = subprocess.check_output([root / DRIVER, "--version"], text=True).strip()
 provenance = {
     "family": FAMILY,
-    "date": BUILD,
+    "version" if STABLE else "date": BUILD,
     "tag": TAG,
+    "ref": REF,
     "source": f"https://github.com/gcc-mirror/gcc/commit/{revision}",
     "gcc_revision": revision,
     "driver": DRIVER,
     "version": version,
     "languages": ["c", "lto"],
-    "gcc_checking": "yes",
+    "gcc_checking": "yes,extra,rtl",
+    # Backports applied on top of the upstream source, from patches/gcc-<major>/.
+    "patches": sorted(p.name for p in (ROOT / "patches" / f"gcc-{MAJOR}").glob("*.patch")),
     "cross_tools_source": cross_source,
 }
 (root / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")

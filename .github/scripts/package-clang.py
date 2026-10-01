@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -14,6 +15,10 @@ FAMILY = os.environ["FAMILY"]
 DRIVER = os.environ["DRIVER"]
 BUILD = os.environ["BUILD"]
 TAG = os.environ["TAG"]
+# The upstream ref checked out: a release tag for a stable build, the pinned
+# trunk commit for a nightly.
+REF = os.environ["REF"]
+STABLE = bool(re.fullmatch(r"\d+\.\d+\.\d+", BUILD))
 INSTALL = ROOT / "llvm-install"
 SOURCE = ROOT / "llvm"
 
@@ -41,7 +46,8 @@ root = staging / f"{FAMILY}-{BUILD}"
 root.mkdir(parents=True)
 
 # The parts a C compile touches: the driver and its versioned twin, the
-# resource directory (headers and sanitizer runtimes), and the license.
+# resource directory (headers, and the nightly's sanitizer runtimes), and the
+# license.
 for path in (INSTALL / "bin").iterdir():
     if path.name.startswith("clang") or path.suffix == ".cfg":
         copy(path, root / "bin" / path.name)
@@ -55,8 +61,9 @@ revision = subprocess.check_output(
 version = subprocess.check_output([root / DRIVER, "--version"], text=True).strip()
 provenance = {
     "family": FAMILY,
-    "date": BUILD,
+    "version" if STABLE else "date": BUILD,
     "tag": TAG,
+    "ref": REF,
     "source": f"https://github.com/llvm/llvm-project/commit/{revision}",
     "llvm_revision": revision,
     "driver": DRIVER,

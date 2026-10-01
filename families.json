@@ -1,328 +1,81 @@
 {
- "drop": [
-  "libgo.*",
-  "libgo-*",
-  "libgphobos*",
-  "libgdruntime*",
-  "libgfortran*",
-  "libstdc++*",
-  "libsupc++*",
-  "libobjc*",
-  "libgnat*",
-  "libgnarl*",
-  "librust*",
-  "libgm2*",
-  "libcobol*",
-  "libga68*",
-  "libgrust*",
-  "*.la"
- ],
  "families": [
   {
-   "name": "gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "bin/gcc",
-   "keep": [
-    "bin/",
-    "*/bin/",
-    "libexec/gcc/*/*/cc1",
-    "libexec/gcc/*/*/collect2",
-    "libexec/gcc/*/*/lto-wrapper",
-    "libexec/gcc/*/*/liblto_plugin.so*",
-    "lib/gcc/*/*/*.o",
-    "lib/gcc/*/*/lib*",
-    "lib/gcc/*/*/include/",
-    "lib/gcc/*/*/include-fixed/",
-    "lib64/lib*",
-    "lib/lib*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "clang-trunk",
-   "source_root": "clang-trunk",
-   "driver": "bin/clang",
-   "keep": [
-    "bin/clang",
-    "bin/clang++",
-    "bin/clang-#",
-    "bin/*.cfg",
-    "lib/clang/",
-    "include/llvm/Support/LICENSE.TXT"
-   ],
-   "nightly": "none"
-  },
-  {
-   "name": "clang-assertions-trunk",
-   "source_root": "clang-assertions-trunk",
-   "driver": "bin/clang",
-   "keep": [
-    "bin/clang",
-    "bin/clang++",
-    "bin/clang-#",
-    "bin/*.cfg",
-    "lib/clang/",
-    "include/llvm/Support/LICENSE.TXT"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "gcc-assertions",
-   "source_root": "gcc-assertions",
-   "driver": "bin/gcc",
-   "keep": [
-    "bin/",
-    "*/bin/",
-    "libexec/gcc/*/*/cc1",
-    "libexec/gcc/*/*/collect2",
-    "libexec/gcc/*/*/lto-wrapper",
-    "libexec/gcc/*/*/liblto_plugin.so*",
-    "lib/gcc/*/*/*.o",
-    "lib/gcc/*/*/lib*",
-    "lib/gcc/*/*/include/",
-    "lib/gcc/*/*/include-fixed/",
-    "lib64/lib*",
-    "lib/lib*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "arm-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "arm-unknown-linux-gnueabihf/bin/arm-unknown-linux-gnueabihf-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "arm64-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "aarch64-unknown-linux-gnu/bin/aarch64-unknown-linux-gnu-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "loongarch64-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "loongarch64-unknown-linux-gnu/bin/loongarch64-unknown-linux-gnu-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "powerpc64-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "powerpc64-unknown-linux-gnu/bin/powerpc64-unknown-linux-gnu-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "powerpc64le-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "powerpc64le-unknown-linux-gnu/bin/powerpc64le-unknown-linux-gnu-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  },
-  {
-   "name": "riscv64-gcc-trunk",
-   "source_root": "gcc-trunk",
-   "driver": "riscv64-unknown-linux-gnu/bin/riscv64-unknown-linux-gnu-gcc",
-   "keep": [
-    "*/share/licenses/",
-    "*/bin/",
-    "*/*/bin/",
-    "*/libexec/gcc/*/*/cc1",
-    "*/libexec/gcc/*/*/collect2",
-    "*/libexec/gcc/*/*/lto-wrapper",
-    "*/libexec/gcc/*/*/liblto_plugin.so*",
-    "*/lib/gcc/*/*/*.o",
-    "*/lib/gcc/*/*/lib*",
-    "*/lib/gcc/*/*/include/",
-    "*/lib/gcc/*/*/include-fixed/",
-    "*/lib/lib*",
-    "*/*/lib/",
-    "*/*/lib64/",
-    "*/*/sysroot/lib/",
-    "*/*/sysroot/lib64/",
-    "*/*/sysroot/usr/include/",
-    "*/*/sysroot/usr/lib/",
-    "*/*/sysroot/usr/lib64/",
-    "*/build.log*"
-   ],
-   "nightly": "build"
-  }
- ],
- "built": [
-  {
-   "family": "gcc-assertions-trunk",
+   "family": "gcc-assertions",
+   "compiler": "gcc",
    "target": "x86_64-pc-linux-gnu",
    "cross": "",
    "driver": "bin/gcc",
    "arch": [],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "arm64-gcc-assertions-trunk",
+   "family": "arm64-gcc-assertions",
+   "compiler": "gcc",
    "target": "aarch64-linux-gnu",
    "cross": "arm64",
    "driver": "aarch64-linux-gnu/bin/aarch64-linux-gnu-gcc",
    "arch": [],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "arm-gcc-assertions-trunk",
+   "family": "arm-gcc-assertions",
+   "compiler": "gcc",
    "target": "arm-linux-gnueabihf",
    "cross": "armhf",
    "driver": "arm-linux-gnueabihf/bin/arm-linux-gnueabihf-gcc",
    "arch": [
-    "--with-arch=armv7-a+fp"
+    "--with-arch=armv7-a+fp",
+    "--with-float=hard"
    ],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "riscv64-gcc-assertions-trunk",
+   "family": "riscv64-gcc-assertions",
+   "compiler": "gcc",
    "target": "riscv64-linux-gnu",
    "cross": "riscv64",
    "driver": "riscv64-linux-gnu/bin/riscv64-linux-gnu-gcc",
    "arch": [],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "powerpc64-gcc-assertions-trunk",
+   "family": "powerpc64-gcc-assertions",
+   "compiler": "gcc",
    "target": "powerpc64-linux-gnu",
    "cross": "ppc64",
    "driver": "powerpc64-linux-gnu/bin/powerpc64-linux-gnu-gcc",
    "arch": [],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "powerpc64le-gcc-assertions-trunk",
+   "family": "powerpc64le-gcc-assertions",
+   "compiler": "gcc",
    "target": "powerpc64le-linux-gnu",
    "cross": "ppc64el",
    "driver": "powerpc64le-linux-gnu/bin/powerpc64le-linux-gnu-gcc",
    "arch": [],
-   "compiler": "gcc"
+   "since": 9
   },
   {
-   "family": "loongarch64-gcc-assertions-trunk",
+   "family": "loongarch64-gcc-assertions",
+   "compiler": "gcc",
    "target": "loongarch64-linux-gnu",
    "cross": "loong64",
    "driver": "loongarch64-linux-gnu/bin/loongarch64-linux-gnu-gcc",
    "arch": [
     "--with-arch=loongarch64"
    ],
-   "compiler": "gcc"
+   "since": 12
   },
   {
-   "family": "clang-assertions-trunk",
+   "family": "clang-assertions",
    "compiler": "clang",
    "target": "x86_64-pc-linux-gnu",
    "cross": "",
    "driver": "bin/clang",
-   "arch": []
+   "arch": [],
+   "since": 9
   }
  ]
 }
