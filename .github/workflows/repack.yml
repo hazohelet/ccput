@@ -60,7 +60,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag='${{ steps.plan.outputs.tag }}'
-          notes="Trunk gcc and clang, built here from upstream source at the commits each asset's provenance.json names. gcc -- the host and every cross target -- is built with C and LTO only and --enable-checking=yes,extra,rtl, using Ubuntu 24.04's own compiler for the host and its cross binutils and libc packages for each target's tools and sysroot. clang is built Release with LLVM_ENABLE_ASSERTIONS=ON and compiler-rt. manifest.json indexes the release. gcc and binutils are GPLv3 -- the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), each gcc archive carries build.log.bz2 with its configure/build details and the share/licenses/ tree for the packages it consumed. clang is Apache-2.0 -- LLVM's LICENSE.TXT ships inside each clang archive."
+          notes="Trunk gcc and clang, built here from upstream source at the commits each asset's provenance.json names. gcc -- the host and every cross target -- is built with C and LTO only and --enable-checking=yes,extra,rtl, using Ubuntu 24.04's own compiler for the host and its cross binutils and libc packages for each target's tools and sysroot. clang is built Release with LLVM_ENABLE_ASSERTIONS=ON and compiler-rt, and ships the lld built alongside it (bin/ld.lld, used by -fuse-ld=lld). manifest.json indexes the release. gcc and binutils are GPLv3 -- the source of a gcc build is the gcc git tree at its gcc_revision (https://gcc.gnu.org/git/?p=gcc.git;a=commit;h=<gcc_revision>), each gcc archive carries build.log.bz2 with its configure/build details and the share/licenses/ tree for the packages it consumed. clang is Apache-2.0 -- LLVM's LICENSE.TXT ships inside each clang archive."
           gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" \
             --title "nightlies $tag" \
             --notes "$notes"
@@ -174,9 +174,9 @@ jobs:
       - name: Install the build tools
         run: sudo apt-get update && sudo apt-get install -y
           build-essential gcc-14 g++-14 cmake ninja-build python3 zlib1g-dev
-      - name: Build the assertions-enabled clang
+      - name: Build the assertions-enabled clang and lld
         run: .github/scripts/build-clang.sh
-      - name: Package only what C compilation needs
+      - name: Package only what C compilation and linking need
         env:
           BUILD: ${{ matrix.build }}
           TAG: ${{ matrix.tag }}

@@ -130,6 +130,62 @@ def main() -> int:
                     f"{ran.stderr.strip()[:200]}"
                 )
             outputs[opt] = ran.stdout
+        # A clang build ships lld beside the driver: -fuse-ld=lld must pick
+        # that lld, not one on the runner, and link a program that agrees.
+        provenance = json.loads(record.read_text())
+        if provenance.get("lld"):
+            lld = tree / provenance["lld"]
+            if not (lld.is_file() and os.access(lld, os.X_OK)):
+                die(f"{lld} is not executable")
+            for opt in OPTS:
+                binary = work / f"probe-lld{opt}"
+                subprocess.run(
+                    [driver, "-w", opt, "-fuse-ld=lld", probe, "-o", binary], check=True
+                )
+                comment = subprocess.run(
+                    ["readelf", "-p", ".comment", binary], capture_output=True, text=True
+                ).stdout
+                if "Linker: LLD" not in comment:
+                    die(f"{opt} -fuse-ld=lld did not link with lld")
+                ran = subprocess.run([binary], capture_output=True, text=True)
+                if ran.returncode != 0 or ran.stdout != outputs[opt]:
+                    die(
+                        f"the {opt} lld-linked probe printed {ran.stdout!r} "
+                        f"(exit {ran.returncode}), expected {outputs[opt]!r}"
+                    )
+            print(f"selfcheck: {family}-{build} links with its own lld at {'/'.join(OPTS)}")
+
+            # LTO through that lld: -flto must leave LLVM bitcode in the object,
+            # which only lld's own LTO backend can turn into code, and the
+            # program it links must agree with the plain one. The LTO backend
+            # has no size level: drivers from LLVM 11 on pass -Os to it as
+            # -plugin-opt=O2, older ones pass -plugin-opt=Os, which their lld
+            # rejects, so the link step names O2 itself; -Os still shapes the
+            # bitcode the compile step emits.
+            for lto in ("-flto=full", "-flto=thin"):
+                for opt in OPTS:
+                    obj = work / f"probe{lto}{opt}.o"
+                    binary = work / f"probe{lto}{opt}"
+                    subprocess.run(
+                        [driver, "-w", opt, lto, "-c", probe, "-o", obj], check=True
+                    )
+                    if obj.read_bytes()[:4] != b"BC\xc0\xde":
+                        die(f"{opt} {lto} did not emit LLVM bitcode")
+                    subprocess.run(
+                        [driver, "-O2" if opt == "-Os" else opt, lto, "-fuse-ld=lld",
+                         obj, "-o", binary],
+                        check=True,
+                    )
+                    ran = subprocess.run([binary], capture_output=True, text=True)
+                    if ran.returncode != 0 or ran.stdout != outputs[opt]:
+                        die(
+                            f"the {opt} {lto} probe printed {ran.stdout!r} "
+                            f"(exit {ran.returncode}), expected {outputs[opt]!r}"
+                        )
+            print(
+                f"selfcheck: {family}-{build} links full and thin LTO with its own "
+                f"lld at {'/'.join(OPTS)}"
+            )
         if len(set(outputs.values())) > 1:
             die(f"the optimisation levels disagree: {outputs}")
         where = "natively" if host else f"under qemu-{arch}" if emulator else "(not run)"

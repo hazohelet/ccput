@@ -45,11 +45,13 @@ shutil.rmtree(staging, ignore_errors=True)
 root = staging / f"{FAMILY}-{BUILD}"
 root.mkdir(parents=True)
 
-# The parts a C compile touches: the driver and its versioned twin, the
+# The parts a C compile touches: the driver and its versioned twin, lld and its
+# flavour symlinks (ld.lld, ld64.lld, lld-link, wasm-ld) for -fuse-ld=lld, the
 # resource directory (headers, and the nightly's sanitizer runtimes), and the
 # license.
+LLD = {"lld", "ld.lld", "ld64.lld", "lld-link", "wasm-ld"}
 for path in (INSTALL / "bin").iterdir():
-    if path.name.startswith("clang") or path.suffix == ".cfg":
+    if path.name.startswith("clang") or path.name in LLD or path.suffix == ".cfg":
         copy(path, root / "bin" / path.name)
 copy(INSTALL / "lib" / "clang", root / "lib" / "clang")
 copy(SOURCE / "llvm" / "include" / "llvm" / "Support" / "LICENSE.TXT",
@@ -59,6 +61,9 @@ revision = subprocess.check_output(
     ["git", "-C", SOURCE, "rev-parse", "HEAD"], text=True
 ).strip()
 version = subprocess.check_output([root / DRIVER, "--version"], text=True).strip()
+lld_version = subprocess.check_output(
+    [root / "bin" / "ld.lld", "--version"], text=True
+).strip()
 provenance = {
     "family": FAMILY,
     "version" if STABLE else "date": BUILD,
@@ -68,6 +73,8 @@ provenance = {
     "llvm_revision": revision,
     "driver": DRIVER,
     "version": version,
+    "lld": "bin/ld.lld",
+    "lld_version": lld_version,
     "assertions": True,
 }
 (root / "provenance.json").write_text(json.dumps(provenance, indent=1) + "\n")

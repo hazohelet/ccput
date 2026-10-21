@@ -3,9 +3,9 @@ set -euo pipefail
 
 : "${FAMILY:?FAMILY is required}"
 
-# Build clang from an llvm-project checkout -- trunk or a release tag -- as an
-# assertions compiler: Release with LLVM_ENABLE_ASSERTIONS=ON, every backend
-# target, and for the nightly compiler-rt for the sanitizer runtimes.
+# Build clang and lld from an llvm-project checkout -- trunk or a release tag --
+# as an assertions toolchain: Release with LLVM_ENABLE_ASSERTIONS=ON, every
+# backend target, and for the nightly compiler-rt for the sanitizer runtimes.
 
 workspace=$PWD
 install="$workspace/llvm-install"
@@ -32,11 +32,11 @@ if [[ ! "$major" =~ ^[0-9]+$ ]]; then
 fi
 echo "building LLVM $major"
 
-# A stable release builds the compiler alone. The sanitizer runtimes of older
+# A stable release builds the compiler and its linker alone. The sanitizer runtimes of older
 # releases do not build or run against the current glibc and kernel, so only
 # the nightly carries compiler-rt.
 runtimes=()
-targets=(install-clang install-clang-resource-headers)
+targets=(install-clang install-clang-resource-headers install-lld)
 if [[ "${KIND:?KIND is required}" == nightly ]]; then
   runtimes=(-DLLVM_ENABLE_RUNTIMES=compiler-rt)
   targets+=(install-runtimes)
@@ -58,7 +58,9 @@ cmake=/usr/bin/cmake
 
 # Every optional dependency the runner happens to have installed would be
 # linked in and then missing wherever the archive is unpacked: older releases
-# pick up the runner's libz3 on their own, so it is turned off explicitly.
+# pick up the runner's libz3 on their own, so it is turned off explicitly, and
+# lld links the runner's libxml2 for lld-link's manifest merging unless told
+# not to.
 "$cmake" -S "$src/llvm" -B "$build" -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX="$install" \
@@ -66,7 +68,7 @@ cmake=/usr/bin/cmake
   -DCMAKE_CXX_COMPILER=g++-14 \
   -DCMAKE_CXX_FLAGS="$cxxflags" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DLLVM_ENABLE_PROJECTS=clang \
+  -DLLVM_ENABLE_PROJECTS='clang;lld' \
   "${runtimes[@]}" \
   -DLLVM_INCLUDE_TESTS=OFF \
   -DLLVM_INCLUDE_BENCHMARKS=OFF \
@@ -74,6 +76,7 @@ cmake=/usr/bin/cmake
   -DLLVM_INCLUDE_DOCS=OFF \
   -DLLVM_ENABLE_BINDINGS=OFF \
   -DLLVM_ENABLE_Z3_SOLVER=OFF \
+  -DLLVM_ENABLE_LIBXML2=OFF \
   -DLLVM_PARALLEL_LINK_JOBS=2 \
   2>&1 | tee "$workspace/configure.log"
 
@@ -81,6 +84,7 @@ ninja -C "$build" "${targets[@]}" \
   2>&1 | tee "$workspace/build.log"
 
 "$install/bin/clang" --version
+"$install/bin/ld.lld" --version
 # The assertions must really be on: a Release build without them would pass
 # every check below. -debug-only exists only in a build with assertions.
 debug=$("$install/bin/clang" -mllvm -debug-only=isel -c -x c /dev/null -o /dev/null 2>&1 || true)
@@ -95,6 +99,14 @@ printf '#include <stdio.h>\nint main(void){printf("ok\\n");return 0;}\n' \
   > "$workspace/probe.c"
 "$install/bin/clang" "$workspace/probe.c" -o "$workspace/probe"
 "$workspace/probe"
+# install-lld puts the ld.lld symlink next to clang, where -fuse-ld=lld finds
+# it before any linker on PATH.
+"$install/bin/clang" -fuse-ld=lld "$workspace/probe.c" -o "$workspace/probe-lld"
+readelf -p .comment "$workspace/probe-lld" | grep -q "Linker: LLD" || {
+  echo "::error::-fuse-ld=lld did not link with the lld just built"
+  exit 1
+}
+"$workspace/probe-lld"
 if [[ "$KIND" == nightly ]]; then
   "$install/bin/clang" -fsanitize=undefined,address "$workspace/probe.c" \
     -o "$workspace/probe-san"

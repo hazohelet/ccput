@@ -26,7 +26,7 @@ Every family is built twice over:
 | `powerpc64-gcc-assertions` | `powerpc64-linux-gnu` | `powerpc64-linux-gnu/bin/powerpc64-linux-gnu-gcc` |
 | `powerpc64le-gcc-assertions` | `powerpc64le-linux-gnu` | `powerpc64le-linux-gnu/bin/powerpc64le-linux-gnu-gcc` |
 | `loongarch64-gcc-assertions` | `loongarch64-linux-gnu` | `loongarch64-linux-gnu/bin/loongarch64-linux-gnu-gcc` |
-| `clang-assertions` | x86_64 host, every backend | `bin/clang` |
+| `clang-assertions` | x86_64 host, every backend | `bin/clang` (and `bin/ld.lld`) |
 
 The configuration is the same for a nightly and a stable build:
 
@@ -43,7 +43,12 @@ The configuration is the same for a nightly and a stable build:
   `<cstdint>`/`<limits>`/`<string>`/`<cstdio>` includes for that host
   compiler. Only the nightly builds compiler-rt: the sanitizer runtimes of
   older releases do not build or run against the current glibc and kernel, so
-  a stable clang ships the compiler and its resource headers alone.
+  a stable clang ships the compiler, its resource headers and lld alone.
+  Every clang archive carries the lld built from the same commit (`bin/lld`
+  and its `ld.lld`/`ld64.lld`/`lld-link`/`wasm-ld` links), which
+  `-fuse-ld=lld` picks over any linker on the system. Nightlies from before
+  20261020 ship no lld and are left as they are; stable clang releases
+  published without lld are rebuilt from the same upstream tag.
 
 Each archive carries a `provenance.json` naming its exact upstream commit, and
 each release a `manifest.json` indexing its archives. Before an archive is
@@ -52,7 +57,9 @@ beyond glibc, libstdc++, zlib, zstd and tinfo unless the archive ships it (a
 cross build carries its binutils' own libraries), then compiles, links and
 runs a program with it at
 `-O0`/`-O1`/`-O2`/`-O3`/`-Os` and checks the results agree -- a cross build
-under the pinned qemu-user from `flake.nix`. The nightlies are also checked
+under the pinned qemu-user from `flake.nix`; a clang build does it again
+linked with its own lld (`-fuse-ld=lld`), and with full and thin LTO
+(`-flto=full`/`-flto=thin`) through that lld. The nightlies are also checked
 under UBSan and ASan.
 
 ```sh

@@ -79,19 +79,31 @@ def stable_versions(compiler: str, since: int) -> dict[str, str]:
     return {".".join(map(str, v)): tags[v] for _, v in sorted(newest.items())}
 
 
-def built_here(tag: str) -> bool:
-    """Whether a published stable release holds this workflow's own build.
-    Releases from before the switch to building from source carry Compiler
-    Explorer's tarball under the same tag; those are rebuilt in place."""
+def published(tag: str) -> list[dict]:
+    """The asset entries of a published release's manifest; none if it has no
+    readable manifest."""
     repo = os.environ.get("GITHUB_REPOSITORY", "hazohelet/ccput")
     url = f"https://github.com/{repo}/releases/download/{tag}/manifest.json"
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
-            manifest = json.load(r)
+            return json.load(r).get("assets", [])
     except (urllib.error.URLError, json.JSONDecodeError):
-        return False
-    sources = [a.get("source", "") for a in manifest.get("assets", [])]
+        return []
+
+
+def built_here(assets: list[dict]) -> bool:
+    """Whether a published stable release holds this workflow's own build.
+    Releases from before the switch to building from source carry Compiler
+    Explorer's tarball under the same tag; those are rebuilt in place."""
+    sources = [a.get("source", "") for a in assets]
     return bool(sources) and all(s.startswith("https://github.com/") for s in sources)
+
+
+def has_lld(assets: list[dict]) -> bool:
+    """Whether a published clang build ships lld. Clang builds from before lld
+    was added name no `lld` in their provenance; those are rebuilt in place,
+    from the same upstream tag."""
+    return bool(assets) and all(a.get("lld") for a in assets)
 
 
 def is_version(build: str) -> bool:
@@ -154,10 +166,14 @@ def cmd_plan(args) -> int:
                 continue
             stable_tag = f"{name}-{version}"
             if stable_tag in have and not args.rebuild:
-                if built_here(stable_tag):
+                assets = published(stable_tag)
+                if not built_here(assets):
+                    print(f"{stable_tag}: released from Compiler Explorer; rebuilding", file=sys.stderr)
+                elif compiler == "clang" and not has_lld(assets):
+                    print(f"{stable_tag}: released without lld; rebuilding", file=sys.stderr)
+                else:
                     print(f"{stable_tag}: already released", file=sys.stderr)
                     continue
-                print(f"{stable_tag}: released from Compiler Explorer; rebuilding", file=sys.stderr)
             include.append(
                 {
                     "family": name,
