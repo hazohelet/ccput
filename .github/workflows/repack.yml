@@ -13,6 +13,14 @@ on:
         description: "nightly release to write to (default: today, UTC) -- set it to fill in a missed day"
         type: string
         default: ""
+      gcc_ref:
+        description: "gcc commit the nightlies build (default: trunk HEAD) -- pin it when filling in a missed day"
+        type: string
+        default: ""
+      clang_ref:
+        description: "llvm-project commit the nightlies build (default: trunk HEAD)"
+        type: string
+        default: ""
       rebuild:
         description: "rebuild selected stable versions even if already released"
         type: boolean
@@ -45,6 +53,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
           SELECT: ${{ inputs.select }}
+          GCC_REF: ${{ inputs.gcc_ref }}
+          CLANG_REF: ${{ inputs.clang_ref }}
           REBUILD: ${{ inputs.rebuild && '--rebuild' || '' }}
         run: |
           # Assigned on its own line so a failed listing stops the run rather
@@ -53,7 +63,7 @@ jobs:
           export CCPUT_RELEASES="${releases//$'\n'/ }"
           # SELECT is a space-separated list of family selectors.
           # shellcheck disable=SC2086
-          ./ccput.py plan --tag "$TAG" $REBUILD $SELECT
+          ./ccput.py plan --tag "$TAG" --gcc-ref "$GCC_REF" --clang-ref "$CLANG_REF" $REBUILD $SELECT
       - name: Create the nightly release
         if: steps.plan.outputs.nightly == 'true'
         env:

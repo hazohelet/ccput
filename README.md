@@ -70,7 +70,10 @@ tar -xf gcc-assertions-16.2.0.tar.xz
 The `build` workflow (`.github/workflows/repack.yml`) runs daily and can be dispatched for a subset:
 `<family>-trunk` builds that nightly, `<family>` every stable version not yet
 released, `<family>-<X.Y.Z>` one stable version; `rebuild` replaces stable
-versions already released. `./ccput.py plan` prints the same plan locally.
+versions already released. `tag` writes the nightlies into an earlier day's
+release, and `gcc_ref`/`clang_ref` pin the commit they build (default:
+upstream HEAD) -- to fill in a missed day at that day's trunk. `./ccput.py plan`
+prints the same plan locally.
 
 Releases from before this repository built its own compilers -- `gcc-X.Y.Z`,
 `clang-X.Y.Z`, `<arch>-gcc-X.Y.Z` and so on -- are Compiler Explorer builds
