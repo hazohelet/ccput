@@ -132,9 +132,57 @@
           };
         };
 
+      # Kitware's own prebuilt cmake, unpacked as is: nixpkgs' cmake is patched
+      # to ignore /usr, where the runner's zlib and headers live. Pinned here
+      # rather than following nixpkgs so a cmake bump is its own commit.
+      mkCmake = pkgs:
+        let
+          version = "4.5.1";
+          arch = {
+            x86_64-linux = {
+              name = "x86_64";
+              hash = "sha256-g7cRgftitP6PJgZ6kyFEhXLnpDvQT/bH9UokwzaY8W0=";
+            };
+            aarch64-linux = {
+              name = "aarch64";
+              hash = "sha256-O+wgjxHtlsFzAy7q+Xk3xU3SRqzv7iKs13lKa05w1TY=";
+            };
+          }.${pkgs.stdenv.hostPlatform.system};
+        in
+        pkgs.stdenvNoCC.mkDerivation {
+          pname = "cmake-kitware";
+          inherit version;
+
+          src = pkgs.fetchurl {
+            url = "https://github.com/Kitware/CMake/releases/download/v${version}/cmake-${version}-linux-${arch.name}.tar.gz";
+            inherit (arch) hash;
+          };
+
+          # It runs on the runner's own Ubuntu, against its glibc and /usr, so
+          # nothing in it is rewritten for the store.
+          dontConfigure = true;
+          dontBuild = true;
+          dontFixup = true;
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p "$out"
+            cp -a bin share "$out"/
+            runHook postInstall
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Kitware's prebuilt CMake ${version}";
+            homepage = "https://cmake.org/";
+            license = licenses.bsd3;
+            platforms = [ "x86_64-linux" "aarch64-linux" ];
+          };
+        };
+
     in {
       packages = forAllSystems (pkgs: rec {
         qemu-user = mkQemuUser pkgs;
+        cmake = mkCmake pkgs;
         default = qemu-user;
       });
     };

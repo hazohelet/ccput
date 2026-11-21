@@ -134,6 +134,11 @@ def cmd_plan(args) -> int:
     have = set(os.environ.get("CCPUT_RELEASES", "").split())
 
     pins: dict[str, str] = {}
+    for compiler, ref in (("gcc", args.gcc_ref), ("clang", args.clang_ref)):
+        if ref:
+            if not re.fullmatch(r"[0-9a-f]{40}", ref):
+                die(f"a pinned {compiler} trunk is a full 40-hex commit hash, not {ref!r}")
+            pins[compiler] = ref
     releases: dict[tuple[str, int], dict[str, str]] = {}
     include = []
     for name, family in FAMILIES.items():
@@ -258,6 +263,16 @@ def main(argv=None) -> int:
         "<family>-<X.Y.Z>; nothing selects everything",
     )
     plan.add_argument("--tag", default="", help="nightly release (default: today, UTC)")
+    plan.add_argument(
+        "--gcc-ref",
+        default="",
+        help="gcc commit the nightlies build (default: upstream HEAD) -- for a missed day",
+    )
+    plan.add_argument(
+        "--clang-ref",
+        default="",
+        help="llvm-project commit the nightlies build (default: upstream HEAD)",
+    )
     plan.add_argument(
         "--rebuild",
         action="store_true",

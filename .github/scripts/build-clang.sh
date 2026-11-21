@@ -50,10 +50,13 @@ if (( major < 16 )); then
   cxxflags="-include cstdint -include limits -include string -include cstdio"
 fi
 
-# The runner image's own cmake may be 4.x, which refuses the
-# cmake_minimum_required of older LLVM releases; Ubuntu's 3.28 accepts every
-# release and is what the runtimes sub-build inherits through CMAKE_COMMAND.
-cmake=/usr/bin/cmake
+# LLVM trunk needs cmake 3.31 or newer, more than Ubuntu 24.04 ships; CI passes
+# the cmake pinned in flake.nix, which the runtimes sub-build inherits through
+# CMAKE_COMMAND. cmake 4 refuses a cmake_minimum_required below 3.5, as LLVM 9
+# to 11 declare (3.4.3), unless told to treat it as 3.5; the variable is
+# exported so every nested cmake run sees it too.
+cmake=${CCPUT_CMAKE:-cmake}
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
 "$cmake" --version
 
 # Every optional dependency the runner happens to have installed would be
